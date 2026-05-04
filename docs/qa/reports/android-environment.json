@@ -1,0 +1,44 @@
+{
+  "apt_android_relevant_packages": [
+    "android-boringssl - Google's internal fork of OpenSSL for the Android SDK - tool",
+    "android-libboringssl - Google's internal fork of OpenSSL for the Android SDK",
+    "android-libboringssl-dev - Google's internal fork of OpenSSL for the Android SDK - devel",
+    "android-liblog - Android NDK logger interfaces",
+    "android-liblog-dev - Android NDK logger interfaces - Development files",
+    "android-sdk-libsparse-utils - Android sparse image creation tool",
+    "libandroid-tools-analytics-library-java - Libraries for tracking the usage analytics of Android SDK",
+    "libandroid-tools-sdklib-java - Library to parse and download the Android SDK",
+    "android-sdk-helper - Helper tools for building Android apps using Debian's Android SDK",
+    "android-sdk - Software development kit for Android platform",
+    "android-sdk-build-tools - Tools for building Android applications",
+    "android-sdk-build-tools-common - Tools for building Android applications - Common files",
+    "android-sdk-common - Common files of Android SDK base toolset",
+    "android-sdk-platform-tools - Tools for interacting with an Android platform",
+    "android-sdk-platform-tools-common - Tools for interacting with an Android platform - Common files",
+    "sdkmanager - Package manager for Android SDK packages"
+  ],
+  "avds": [
+    "vmp_api35_x86_64"
+  ],
+  "blocking_note": "Android APK/JNI and native .so emulator smoke evidence now exists; hard acceptance still requires release-strength CI/signing evidence and hostile-environment trigger evidence.",
+  "commands": {
+    "adb": "/opt/android-sdk/platform-tools/adb",
+    "avdmanager": "/opt/android-sdk/cmdline-tools/latest/bin/avdmanager",
+    "cmake": "/usr/bin/cmake",
+    "emulator": "/opt/android-sdk/emulator/emulator",
+    "ndk_build": "/opt/android-sdk/ndk/26.3.11579264/ndk-build",
+    "sdkmanager": "/opt/android-sdk/cmdline-tools/latest/bin/sdkmanager"
+  },
+  "emulator_available": true,
+  "environment": {
+    "ANDROID_HOME": "/opt/android-sdk",
+    "ANDROID_NDK_HOME": "/opt/android-sdk/ndk/26.3.11579264",
+    "ANDROID_SDK_ROOT": "/opt/android-sdk"
+  },
+  "ndk_available": true,
+  "schema": "vmp.platform.android_environment.v1",
+  "status": "partial",
+  "system_images": [
+    "android-35/default/x86_64"
+  ]
+}

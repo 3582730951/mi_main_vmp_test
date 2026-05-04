@@ -1,0 +1,37 @@
+name: vmprotect-tier
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify-imported-evidence:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate imported VMProtect-tier evidence
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/audit/verify_github_actions_evidence.py --root . \
+            --output docs/qa/reports/vmprotect-tier-github-actions-verification.json \
+            --expected-workflow vmprotect-tier \
+            --expected-workflow-path .github/workflows/vmprotect-tier.yml \
+            --artifact-name vmprotect-tier-evidence \
+            docs/qa/reports/capability-matrix.json \
+            docs/qa/reports/general-ir-lowering.json \
+            docs/qa/reports/production-crypto-key-management.json \
+            docs/qa/reports/vmprotect-tier-review.json
+
+      - name: Upload VMProtect-tier evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vmprotect-tier-evidence
+          path: docs/qa/reports/*.json
+          if-no-files-found: error

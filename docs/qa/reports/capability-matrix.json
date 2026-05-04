@@ -1,0 +1,143 @@
+{
+  "capabilities": [
+    {
+      "evidence": [
+        "src/runtime/VMRuntime.cpp",
+        "src/runtime/VMRuntime.h",
+        "src/core/Bytecode.cpp",
+        "tests/core/fixtures/runtime_entry_smoke.cpp",
+        "tests/core/.llvm-out/sample.protected.ll",
+        "tests/core/.llvm-out/vmp-stage-manifest.json",
+        "samples/protected_chain/out/protected_sample.vmp"
+      ],
+      "gap": "Local VM bytecode sample exists and the LLVM fixture now derives executable VM runtime stubs for narrow i32 zero-, one-, two-, three-, and four-argument functions with straight-line local alloca/load/store, repeated loads from a definite local store, branch-condition loads whose defining store is on the entry-to-branch prefix, single-slot branch/merge local stores with a definite store on every lowered path, add/sub/mul/and/or/xor/select expressions, zext/sext from supported icmp-i32 predicates to i32, narrow trunc-i32-to-i1/i8/i16 followed by zext/sext back to i32 or through a wider integer and safely truncated back to i32, constant shl/lshr/ashr shifts with shift amounts in 0..31, dynamic shifts whose amount is masked with and-i32-31, eq/ne/sgt/slt/sge/sle/ugt/ult/uge/ule acyclic branch trees and select conditions, simple PHI return merges, and direct internal ordinary_add host-call cases including multiple linear calls with preserved intermediate results, local-stack stores fed by select/call values, and simple branch-return host-call paths; nested VM branch targets are rebased when serialized, pre-existing bytecode globals must match a fresh lowering of the current body and be pass-marked immutable private globals before reuse, and replacement refreshes bytecode metadata to the actual generated global; unmasked dynamic shifts, constant shifts outside 0..31, poison-generating nuw/nsw/exact arithmetic or shift flags, unsupported integer casts outside the narrow trunc-extension and safe wide-round-trip pattern, reserved opaque-dispatch name collisions, pre-existing outline-name collisions, loops or irreducible control flow, uninitialized branch-local loads, loads outside the lowered store path or branch prefix, stale or mutable pre-seeded bytecode globals, local memory combined with PHI shapes, observable side-effecting IR, and global-store IR remain native, and unsupported selected functions are reported explicitly; broad LLVM IR lowering and production function replacement are not complete.",
+      "name": "code_virtualization",
+      "status": "partial"
+    },
+    {
+      "evidence": [
+        "tests/core/.llvm-out/sample.protected.ll",
+        "tests/core/.llvm-out/vmp-stage-manifest.json",
+        "src/core/llvm/VMPPassPlugin.cpp"
+      ],
+      "gap": "LLVM pass now emits limited bogus dispatch and XOR substitution; full OLLVM flatten/split/substitution coverage is incomplete.",
+      "name": "mutation_obfuscation",
+      "status": "partial"
+    },
+    {
+      "evidence": [
+        "tests/core/run_llvm_plugin_test.sh",
+        "tests/core/fixtures/runtime_entry_smoke.cpp",
+        "samples/protected_chain/out/behavior.json",
+        "samples/protected_chain/out/randomness.json",
+        "docs/qa/reports/android-apk-smoke.json",
+        "docs/qa/reports/performance-sample.json"
+      ],
+      "gap": "Local sample and LLVM fixture combine VM runtime stubs, randomized opcode maps, encrypted payloads, string scan, benchmark, and release-like Android APK/JNI smoke only; production release platform artifacts are not proven.",
+      "name": "combined_protection",
+      "status": "partial"
+    },
+    {
+      "evidence": [
+        "samples/protected_chain/out/strings.json",
+        "scripts/audit/acceptance_audit.py"
+      ],
+      "gap": "Sample artifact is clean, but full release API/JNI/import string hiding is not proven.",
+      "name": "string_hiding",
+      "status": "pass"
+    },
+    {
+      "evidence": [
+        "src/platform/platform_common.c",
+        "tests/platform/windows_acceptance.ps1"
+      ],
+      "gap": "Hash helpers and smoke scans exist; production import resolver and release PE proof are incomplete.",
+      "name": "import_hiding",
+      "status": "partial"
+    },
+    {
+      "evidence": [
+        "docs/qa/reports/hostile-environment.json",
+        "src/anti_analysis/environment.py"
+      ],
+      "gap": "Synthetic and partial Linux trigger evidence exists; Android emulator baseline probes may also exist, but Windows hardware/page breakpoints/DLL injection and Android root/Xposed/LSPosed/Frida/hook hostile-trigger coverage are missing.",
+      "name": "anti_debug_injection",
+      "status": "partial_linux"
+    },
+    {
+      "evidence": [
+        "src/core/Bytecode.cpp",
+        "tests/core/core_tests.cpp"
+      ],
+      "gap": "Bytecode auth tag rejects sample payload and opcode-map tampering; production cryptographic primitive and platform seal are incomplete.",
+      "name": "anti_tamper",
+      "status": "partial"
+    },
+    {
+      "evidence": [
+        "docs/qa/reports/android-apk-smoke.json",
+        "tests/platform/android_apk_smoke.sh"
+      ],
+      "gap": "Release-like local emulator APK/JNI smoke embeds the protected payload inside the JNI .so, but signed production release evidence and hostile-env evidence are missing.",
+      "name": "android_emulator",
+      "status": "pass"
+    },
+    {
+      "evidence": [
+        "docs/qa/reports/windows-cross-build.json",
+        "docs/qa/reports/windows-protected-cross-build.json",
+        "docs/qa/ExternalEvidenceRequest.md",
+        ".github/workflows/platform-windows.yml"
+      ],
+      "gap": "Local cross-build is not GitHub Actions Windows execution; Windows hard acceptance requires reports with ci_execution=true from a Windows GitHub Actions runner.",
+      "name": "windows_ci",
+      "status": "blocked"
+    }
+  ],
+  "final_signoff_allowed": false,
+  "github_event_name": null,
+  "github_ref": null,
+  "github_ref_name": null,
+  "github_ref_protected": null,
+  "github_repository": null,
+  "github_run_attempt": null,
+  "github_run_id": null,
+  "github_run_url": null,
+  "github_sha": null,
+  "github_workflow": null,
+  "llvm_stage_manifest": {
+    "excluded_stage_evidence": [
+      "vmp-ir-normalize",
+      "vmp-flatten",
+      "vmp-const-string-encryption",
+      "vmp-opcode-randomize",
+      "vmp-bytecode-encrypt",
+      "vmp-nesting",
+      "vmp-anti-analysis-hooks"
+    ],
+    "implemented_stages": [
+      "vmp-config-load",
+      "vmp-function-marker",
+      "vmp-block-split",
+      "vmp-bogus-branch",
+      "vmp-instruction-substitution",
+      "vmp-ir-to-bytecode",
+      "vmp-function-replacement"
+    ],
+    "path": "tests/core/.llvm-out/vmp-stage-manifest.json",
+    "placeholder_noop_stages": [
+      "vmp-ir-normalize",
+      "vmp-flatten",
+      "vmp-const-string-encryption",
+      "vmp-opcode-randomize",
+      "vmp-bytecode-encrypt",
+      "vmp-nesting",
+      "vmp-anti-analysis-hooks"
+    ],
+    "sha256": "4cda5eff4187f13db0dcb093c9dee8aa13d7789df1488eb9255e67b7fe1a97ff",
+    "status": "pass"
+  },
+  "schema": "vmp.qa.capability_matrix.v1",
+  "status": "blocked",
+  "summary": "Current evidence is stronger than a pure skeleton, but still not VMProtect-tier commercial protection."
+}

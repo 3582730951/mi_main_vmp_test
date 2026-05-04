@@ -1,0 +1,14 @@
+profile: protected-sample
+seed: protected-sample-seed-v1
+vm_level: 2
+anti_debug: false
+ollvm:
+  block_split: 1
+  flatten: 1
+  bogus_branch: 0
+  instruction_substitution: 1
+  const_string_encryption: true
+functions:
+  - name: authorized_sample_behavior
+    vm_level: 2
+    protect: true

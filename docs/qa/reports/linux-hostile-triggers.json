@@ -1,0 +1,68 @@
+{
+  "baseline_controls": {
+    "ld_preload": {
+      "exit_code": 0,
+      "present": false,
+      "signal": "ld_preload_module_mapped",
+      "source": "linux_proc_maps_baseline"
+    },
+    "tracer": {
+      "exit_code": 0,
+      "present": false,
+      "signal": "tracer_pid_nonzero",
+      "source": "linux_proc_status_baseline",
+      "tracer_pid": 0
+    }
+  },
+  "baseline_findings": [],
+  "findings": [
+    {
+      "action": "deny_protected_execution",
+      "category": "injection",
+      "confidence": 0.95,
+      "details": {
+        "exit_code": "0",
+        "trigger_mode": "ld_preload"
+      },
+      "severity": "hostile",
+      "signal": "ld_preload_module_mapped",
+      "source": "linux_proc_maps"
+    },
+    {
+      "action": "deny_protected_execution",
+      "category": "debugger",
+      "confidence": 0.9,
+      "details": {
+        "exit_code": "0",
+        "ptrace_result": "0",
+        "tracer_pid": "73105",
+        "trigger_mode": "ptrace_traceme"
+      },
+      "severity": "hostile",
+      "signal": "tracer_pid_nonzero",
+      "source": "linux_proc_status_ptrace_traceme"
+    }
+  ],
+  "normal_environment_findings": 0,
+  "real_platform_triggers": true,
+  "schema": "vmp.platform.linux_hostile_triggers.v1",
+  "scope_note": "Linux-only real trigger evidence. Full hard acceptance still requires Windows hardware/memory breakpoint and DLL injection evidence plus Android root/Xposed/LSPosed/Frida/hook evidence.",
+  "status": "partial",
+  "triggers": {
+    "ld_preload": {
+      "exit_code": 0,
+      "present": true,
+      "signal": "ld_preload_module_mapped",
+      "source": "linux_proc_maps"
+    },
+    "tracer": {
+      "exit_code": 0,
+      "present": true,
+      "ptrace_result": 0,
+      "scope_note": "Self-contained ptrace TRACEME probe demonstrates debugger/tracer detection plumbing; it is not non-self hardware-breakpoint evidence.",
+      "signal": "tracer_pid_nonzero",
+      "source": "linux_proc_status_ptrace_traceme",
+      "tracer_pid": 73105
+    }
+  }
+}

@@ -1,0 +1,1098 @@
+; CHECK: @vmp.bytecode.secret_stale_global = private unnamed_addr constant
+; CHECK: @vmp.bytecode.license_check = private unnamed_addr constant
+; CHECK: @vmp.bytecode.auth_pair = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_gate = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_linear = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_const = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_arith = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_mix3 = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_mix4 = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_bits = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_shl = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_lshr = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_ashr = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_masked_shl = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_masked_lshr = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_masked_ashr = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_local = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_local_reuse = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_local_branch = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_branch_load_dead_store = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_nested_branch = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_nested_compute = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_wrap_eq = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_ne = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_select_ne = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_slt = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_select_slt = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_sle = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_sge = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_select_sle = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_select_sge = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_ugt = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_ult = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_uge = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_ule = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_select_ule = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_select_ugt = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_select_ult = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_select_uge = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_cmp_zext = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_cmp_sext = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_zext_i1 = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_zext_i8 = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_sext_i8 = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_zext_i16 = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_zext_i64 = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_sext_i64 = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_zext_i16_i64 = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_sext_i16_i64 = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_local_select = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_local_call = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_select = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_phi = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_call = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_call_chain = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_call_pair = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_call_branch = private unnamed_addr constant
+; CHECK-NOT: @vmp.bytecode.secret_dynamic_shift
+; CHECK-NOT: @vmp.bytecode.secret_dynamic_lshr
+; CHECK-NOT: @vmp.bytecode.secret_dynamic_ashr
+; CHECK-NOT: @vmp.bytecode.secret_wide_shift
+; CHECK-NOT: @vmp.bytecode.secret_wide_shl
+; CHECK-NOT: @vmp.bytecode.secret_wide_ashr
+; CHECK-NOT: @vmp.bytecode.secret_nsw_add
+; CHECK-NOT: @vmp.bytecode.secret_nuw_sub
+; CHECK-NOT: @vmp.bytecode.secret_nsw_mul
+; CHECK-NOT: @vmp.bytecode.secret_nuw_shl
+; CHECK-NOT: @vmp.bytecode.secret_exact_lshr
+; CHECK-NOT: @vmp.bytecode.secret_exact_ashr
+; CHECK-NOT: @vmp.bytecode.secret_local_uninit_branch
+; CHECK-NOT: @vmp.bytecode.secret_load_before_branch
+; CHECK-NOT: @vmp.bytecode.secret_global_store
+; CHECK-NOT: @vmp.bytecode.secret_side_effect
+
+; CHECK-LABEL: define i32 @license_check(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define internal i32 @ordinary_add(i32 %a, i32 %b)
+; CHECK: %sum = add i32 %a, %b
+; CHECK: ret i32 %sum
+
+; CHECK-LABEL: define i32 @auth_pair(i32 %a, i32 %b)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_gate(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_linear(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_const()
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_arith(i32 %x, i32 %y)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_mix3(i32 %x, i32 %y, i32 %z)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_mix4(i32 %a, i32 %b, i32 %c, i32 %d)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32_i32_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_bits(i32 %x, i32 %y)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_shl(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_lshr(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_ashr(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_masked_shl(i32 %x, i32 %amount)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_masked_lshr(i32 %x, i32 %amount)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_masked_ashr(i32 %x, i32 %amount)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_dynamic_shift(i32 %x, i32 %amount)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.unsupported
+; CHECK: %out = shl i32 %x, %amount
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define i32 @secret_dynamic_lshr(i32 %x, i32 %amount)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.unsupported
+; CHECK: %out = lshr i32 %x, %amount
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define i32 @secret_dynamic_ashr(i32 %x, i32 %amount)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.unsupported
+; CHECK: %out = ashr i32 %x, %amount
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define i32 @secret_wide_shift(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.unsupported
+; CHECK: %out = lshr i32 %x, 32
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define i32 @secret_wide_shl(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.unsupported
+; CHECK: %out = shl i32 %x, 32
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define i32 @secret_wide_ashr(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.unsupported
+; CHECK: %out = ashr i32 %x, 32
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define i32 @secret_nsw_add(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.unsupported
+; CHECK: %out = add nsw i32 %x, 1
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define i32 @secret_nuw_sub(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.unsupported
+; CHECK: %out = sub nuw i32 %x, 1
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define i32 @secret_nsw_mul(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.unsupported
+; CHECK: %out = mul nsw i32 %x, 3
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define i32 @secret_nuw_shl(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.unsupported
+; CHECK: %out = shl nuw i32 %x, 1
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define i32 @secret_exact_lshr(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.unsupported
+; CHECK: %out = lshr exact i32 %x, 1
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define i32 @secret_exact_ashr(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.unsupported
+; CHECK: %out = ashr exact i32 %x, 1
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define i32 @secret_local(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_local_reuse(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_local_branch(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_branch_load_dead_store(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_local_uninit_branch(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.unsupported
+; CHECK: store i32 %x, i32* %slot
+; CHECK: ret i32 %loaded
+
+; CHECK-LABEL: define i32 @secret_load_before_branch(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.unsupported
+; CHECK: %loaded = load i32, i32* %slot
+; CHECK: store i32 %x, i32* %slot
+; CHECK: store i32 0, i32* %slot
+; CHECK: ret i32 %loaded
+
+; CHECK-LABEL: define i32 @secret_nested_branch(i32 %x, i32 %y)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_nested_compute(i32 %x, i32 %y)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_global_store(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.unsupported
+; CHECK: store i32 %x, i32* @side_effect_sink
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define i32 @secret_stale_global(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.unsupported
+; CHECK-NOT: !vmp.bytecode
+; CHECK-NOT: !vmp.replaced
+; CHECK: store i32 %x, i32* @side_effect_sink
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define i32 @secret_wrap_eq(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_ne(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_select_ne(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_slt(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_select_slt(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_sle(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_sge(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_select_sle(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_select_sge(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_ugt(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_ult(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_uge(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_ule(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_select_ule(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_select_ugt(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_select_ult(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_select_uge(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_cmp_zext(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_cmp_sext(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_zext_i1(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_zext_i8(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_sext_i8(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_zext_i16(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_zext_i64(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_sext_i64(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_zext_i16_i64(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_sext_i16_i64(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_local_select(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_local_call(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_select(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_phi(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_call(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_call_chain(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_call_pair(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_call_branch(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i32 @vmp_runtime_entry_i32_i32
+; CHECK: ret i32 %vmp.vm.result
+
+; CHECK-LABEL: define i32 @secret_side_effect(i32 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.unsupported
+; CHECK: store volatile i32 %x, i32* @side_effect_sink
+; CHECK: ret i32 %sum
+
+; CHECK-LABEL: define internal i32 @license_check.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: vmp.sub.xor
+; CHECK: br label %vmp.split
+; CHECK: vmp.fake.xref:
+; CHECK: vmp.dispatch:
+; CHECK: ret i32
+
+; CHECK-LABEL: define internal i32 @auth_pair.vmp.outline(i32 %a, i32 %b)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: vmp.sub.xor
+; CHECK: br label %vmp.split
+; CHECK: vmp.fake.xref:
+; CHECK: vmp.dispatch:
+; CHECK: ret i32
+
+; CHECK-LABEL: define internal i32 @secret_gate.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: vmp.sub.xor
+; CHECK: br label %vmp.split
+; CHECK: vmp.fake.xref:
+; CHECK: vmp.dispatch:
+; CHECK: ret i32
+
+; CHECK-LABEL: define internal i32 @secret_linear.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %sum = add i32 %x, 5
+; CHECK: ret i32 %sum
+
+; CHECK-LABEL: define internal i32 @secret_const.vmp.outline()
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %out = xor i32 123, 85
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_arith.vmp.outline(i32 %x, i32 %y)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %scaled = mul i32 %x, 3
+; CHECK: %delta = sub i32 %scaled, %y
+; CHECK: %out = add i32 %delta, 9
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_mix3.vmp.outline(i32 %x, i32 %y, i32 %z)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %sum = add i32 %x, %y
+; CHECK: %mixed = xor i32 %sum, %z
+; CHECK: %out = sub i32 %mixed, 4
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_mix4.vmp.outline(i32 %a, i32 %b, i32 %c, i32 %d)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %sum = add i32 %a, %b
+; CHECK: %delta = sub i32 %c, %d
+; CHECK: %mixed = xor i32 %sum, %delta
+; CHECK: %out = add i32 %mixed, 13
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_bits.vmp.outline(i32 %x, i32 %y)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %masked = and i32 %x, 15
+; CHECK: %merged = or i32 %masked, %y
+; CHECK: %out = xor i32 %merged, 3
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_shl.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %out = shl i32 %x, 3
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_lshr.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %out = lshr i32 %x, 4
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_ashr.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %out = ashr i32 %x, 2
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_masked_shl.vmp.outline(i32 %x, i32 %amount)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %masked = and i32 %amount, 31
+; CHECK: %out = shl i32 %x, %masked
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_masked_lshr.vmp.outline(i32 %x, i32 %amount)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %masked = and i32 %amount, 31
+; CHECK: %out = lshr i32 %x, %masked
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_masked_ashr.vmp.outline(i32 %x, i32 %amount)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %masked = and i32 %amount, 31
+; CHECK: %out = ashr i32 %x, %masked
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_local.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %slot = alloca i32
+; CHECK: store i32 %sum, i32* %slot
+; CHECK: %loaded = load i32, i32* %slot
+; CHECK: %out = xor i32 %loaded, 7
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_local_reuse.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %slot = alloca i32
+; CHECK: store i32 %sum, i32* %slot
+; CHECK: %first = load i32, i32* %slot
+; CHECK: %second = load i32, i32* %slot
+; CHECK: %mixed = add i32 %first, %second
+; CHECK: %out = xor i32 %mixed, 3
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_local_branch.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %slot = alloca i32
+; CHECK: store i32 %x, i32* %slot
+; CHECK: store i32 0, i32* %slot
+; CHECK: %loaded = load i32, i32* %slot
+; CHECK: ret i32 %loaded
+
+; CHECK-LABEL: define internal i32 @secret_branch_load_dead_store.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %slot = alloca i32
+; CHECK: store i32 %x, i32* %slot
+; CHECK: dead:
+; CHECK: store i32 0, i32* %slot
+; CHECK: %loaded = load i32, i32* %slot
+; CHECK: icmp sgt i32
+; CHECK: ret i32 31
+; CHECK: ret i32 17
+
+; CHECK-LABEL: define internal i32 @secret_nested_branch.vmp.outline(i32 %x, i32 %y)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: icmp sgt i32
+; CHECK: icmp sgt i32
+; CHECK: ret i32 11
+; CHECK: ret i32 7
+; CHECK: ret i32 3
+
+; CHECK-LABEL: define internal i32 @secret_nested_compute.vmp.outline(i32 %x, i32 %y)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: icmp sgt i32
+; CHECK: icmp sgt i32
+; CHECK: %sum = add i32 %x, %y
+; CHECK: ret i32 %sum
+; CHECK: %diff = sub i32 %x, %y
+; CHECK: ret i32 %diff
+; CHECK: %neg = sub i32 0, %x
+; CHECK: ret i32 %neg
+
+; CHECK-LABEL: define internal i32 @secret_wrap_eq.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %sum = add i32 %x, 1
+; CHECK: icmp eq i32
+; CHECK: ret i32 1
+; CHECK: ret i32 0
+
+; CHECK-LABEL: define internal i32 @secret_ne.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: icmp ne i32
+; CHECK: ret i32 7
+; CHECK: ret i32 3
+
+; CHECK-LABEL: define internal i32 @secret_select_ne.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: icmp ne i32
+; CHECK: %nz = add i32 %x, 11
+; CHECK: %zero = add i32 %x, 4
+; CHECK: %out = select i1 %cmp, i32 %nz, i32 %zero
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_slt.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: icmp slt i32
+; CHECK: ret i32 9
+; CHECK: ret i32 2
+
+; CHECK-LABEL: define internal i32 @secret_select_slt.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: icmp slt i32
+; CHECK: %lt = add i32 %x, 20
+; CHECK: %ge = add i32 %x, 5
+; CHECK: %out = select i1 %cmp, i32 %lt, i32 %ge
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_sle.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: icmp sle i32
+; CHECK: ret i32 13
+; CHECK: ret i32 4
+
+; CHECK-LABEL: define internal i32 @secret_sge.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: icmp sge i32
+; CHECK: ret i32 14
+; CHECK: ret i32 5
+
+; CHECK-LABEL: define internal i32 @secret_select_sle.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: icmp sle i32
+; CHECK: %le = add i32 %x, 40
+; CHECK: %gt = add i32 %x, 7
+; CHECK: %out = select i1 %cmp, i32 %le, i32 %gt
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_select_sge.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: icmp sge i32
+; CHECK: %ge = add i32 %x, 30
+; CHECK: %lt = add i32 %x, 6
+; CHECK: %out = select i1 %cmp, i32 %ge, i32 %lt
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_ugt.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: icmp ugt i32
+; CHECK: ret i32 21
+; CHECK: ret i32 8
+
+; CHECK-LABEL: define internal i32 @secret_ult.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: icmp ult i32
+; CHECK: ret i32 22
+; CHECK: ret i32 9
+
+; CHECK-LABEL: define internal i32 @secret_uge.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: icmp uge i32
+; CHECK: ret i32 23
+; CHECK: ret i32 10
+
+; CHECK-LABEL: define internal i32 @secret_ule.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: icmp ule i32
+; CHECK: ret i32 24
+; CHECK: ret i32 11
+
+; CHECK-LABEL: define internal i32 @secret_select_ule.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: icmp ule i32
+; CHECK: %le = add i32 %x, 50
+; CHECK: %gt = add i32 %x, 8
+; CHECK: %out = select i1 %cmp, i32 %le, i32 %gt
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_select_ugt.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: icmp ugt i32
+; CHECK: %hi = add i32 %x, 55
+; CHECK: %lo = add i32 %x, 12
+; CHECK: %out = select i1 %cmp, i32 %hi, i32 %lo
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_select_ult.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: icmp ult i32
+; CHECK: %lt = add i32 %x, 60
+; CHECK: %ge = add i32 %x, 9
+; CHECK: %out = select i1 %cmp, i32 %lt, i32 %ge
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_select_uge.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: icmp uge i32
+; CHECK: %ge = add i32 %x, 70
+; CHECK: %lt = add i32 %x, 10
+; CHECK: %out = select i1 %cmp, i32 %ge, i32 %lt
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_cmp_zext.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %cmp = icmp sgt i32
+; CHECK: %out = zext i1 %cmp to i32
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_cmp_sext.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %cmp = icmp sle i32
+; CHECK: %out = sext i1 %cmp to i32
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_zext_i1.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %narrow = trunc i32 %x to i1
+; CHECK: %out = zext i1 %narrow to i32
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_zext_i8.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %narrow = trunc i32 %x to i8
+; CHECK: %out = zext i8 %narrow to i32
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_sext_i8.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %narrow = trunc i32 %x to i8
+; CHECK: %out = sext i8 %narrow to i32
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_zext_i16.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %narrow = trunc i32 %x to i16
+; CHECK: %out = zext i16 %narrow to i32
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_zext_i64.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %narrow = trunc i32 %x to i8
+; CHECK: %wide = zext i8 %narrow to i64
+; CHECK: %out = trunc i64 %wide to i32
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_sext_i64.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %narrow = trunc i32 %x to i8
+; CHECK: %wide = sext i8 %narrow to i64
+; CHECK: %out = trunc i64 %wide to i32
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_zext_i16_i64.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %narrow = trunc i32 %x to i16
+; CHECK: %wide = zext i16 %narrow to i64
+; CHECK: %out = trunc i64 %wide to i32
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_sext_i16_i64.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %narrow = trunc i32 %x to i16
+; CHECK: %wide = sext i16 %narrow to i64
+; CHECK: %out = trunc i64 %wide to i32
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_local_select.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %slot = alloca i32
+; CHECK: %chosen = select i1 %cmp, i32 %pos, i32 %neg
+; CHECK: store i32 %chosen, i32* %slot
+; CHECK: %loaded = load i32, i32* %slot
+; CHECK: ret i32 %loaded
+
+; CHECK-LABEL: define internal i32 @secret_local_call.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %slot = alloca i32
+; CHECK: %sum = call i32 @ordinary_add
+; CHECK: store i32 %sum, i32* %slot
+; CHECK: %loaded = load i32, i32* %slot
+; CHECK: %out = xor i32 %loaded, 1
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_select.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %cmp = icmp sgt i32
+; CHECK: %hi = mul i32 %x, 2
+; CHECK: %lo = sub i32 %x, 2
+; CHECK: %out = select i1 %cmp, i32 %hi, i32 %lo
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_phi.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: icmp sgt i32
+; CHECK: %double = mul i32 %x, 2
+; CHECK: %dec = sub i32 %x, 1
+; CHECK: %out = phi i32
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_call.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %sum = call i32 @ordinary_add
+; CHECK: ret i32 %sum
+
+; CHECK-LABEL: define internal i32 @secret_call_chain.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %first = call i32 @ordinary_add
+; CHECK: %second = call i32 @ordinary_add
+; CHECK: ret i32 %second
+
+; CHECK-LABEL: define internal i32 @secret_call_pair.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %first = call i32 @ordinary_add
+; CHECK: %second = call i32 @ordinary_add
+; CHECK: %out = add i32 %first, %second
+; CHECK: ret i32 %out
+
+; CHECK-LABEL: define internal i32 @secret_call_branch.vmp.outline(i32 %x)
+; CHECK-SAME: !vmp.outlined.original
+; CHECK: %cmp = icmp sgt i32
+; CHECK: %first = call i32 @ordinary_add
+; CHECK: %second = call i32 @ordinary_add
+; CHECK: ret i32 %second
+
+; CHECK: !vmp.pipeline.stages =
+; CHECK: !{!"vmp-config-load"}
+; CHECK: !{!"vmp-function-marker"}
+; CHECK: !{!"vmp-ir-normalize"}
+; CHECK: !{!"vmp-block-split"}
+; CHECK: !{!"vmp-flatten"}
+; CHECK: !{!"vmp-bogus-branch"}
+; CHECK: !{!"vmp-instruction-substitution"}
+; CHECK: !{!"vmp-const-string-encryption"}
+; CHECK: !{!"vmp-ir-to-bytecode"}
+; CHECK: !{!"vmp-opcode-randomize"}
+; CHECK: !{!"vmp-bytecode-encrypt"}
+; CHECK: !{!"vmp-nesting"}
+; CHECK: !{!"vmp-anti-analysis-hooks"}
+; CHECK: !{!"vmp-function-replacement"}
+; CHECK: !{!"vmp-report"}
+; CHECK: !{!"ir-subset-i32-recursive-cfg-expr-bitwise-safe-dynshift-trunccast-stack-select-callhost-branch-phi-vm-runtime"}

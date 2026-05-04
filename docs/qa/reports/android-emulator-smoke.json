@@ -1,0 +1,42 @@
+{
+  "artifacts": [
+    {
+      "bytes": 24192,
+      "path": "build/android-x86_64/libvmp_platform.so"
+    },
+    {
+      "bytes": 25320,
+      "path": "build/android-arm64-v8a/libvmp_platform.so"
+    },
+    {
+      "bytes": 6392,
+      "path": "build/android-x86_64/vmp_android_native_smoke"
+    }
+  ],
+  "blocking_note": null,
+  "ci_execution": false,
+  "core_logic_consistent": true,
+  "device": {
+    "abi": "x86_64",
+    "api_level": "35",
+    "model": "Android SDK built for x86_64"
+  },
+  "emulator_execution": true,
+  "github_actions": false,
+  "jni_on_load_called": true,
+  "protected_so_loaded": true,
+  "runner_name": null,
+  "runner_os": null,
+  "schema": "vmp.platform.android_emulator_smoke.v1",
+  "scope_note": "This is real emulator execution of the Android x86_64 .so through a native dlopen/JNI_OnLoad smoke harness. It is not APK install evidence and does not satisfy hostile-environment triggers.",
+  "smoke_exit_code": 0,
+  "smoke_output": [
+    "platform=3",
+    "pointer_bits=64",
+    "init_state=1095648338",
+    "add_20_22=42",
+    "jni_on_load=65542",
+    "android native smoke passed"
+  ],
+  "status": "pass"
+}

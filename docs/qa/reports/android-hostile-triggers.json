@@ -1,0 +1,39 @@
+{
+  "blocking_note": "Android emulator probes detected root indicators, but hard acceptance still requires Xposed/LSPosed, Frida, and hook trigger reports.",
+  "ci_execution": false,
+  "emulator_probe_executed": true,
+  "findings": [
+    {
+      "action": "deny_protected_execution",
+      "category": "root",
+      "evidence": [
+        "/system/xbin/su"
+      ],
+      "severity": "hostile",
+      "signal": "su_or_magisk_path_present",
+      "source": "android_filesystem"
+    },
+    {
+      "action": "deny_protected_execution",
+      "category": "root",
+      "evidence": "ro.debuggable=1",
+      "severity": "hostile",
+      "signal": "ro_debuggable_enabled",
+      "source": "android_getprop"
+    }
+  ],
+  "github_actions": false,
+  "hostile_trigger_executed": true,
+  "hostile_trigger_types": [
+    "root"
+  ],
+  "missing_required_triggers": [
+    "xposed_or_lsposed_trigger",
+    "frida_or_hook_trigger"
+  ],
+  "normal_environment_findings": null,
+  "runner_name": null,
+  "runner_os": null,
+  "schema": "vmp.platform.android_hostile_triggers.v1",
+  "status": "blocked"
+}

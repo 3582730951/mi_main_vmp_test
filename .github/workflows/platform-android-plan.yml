@@ -1,0 +1,76 @@
+name: platform-android
+
+on:
+  pull_request:
+    paths:
+      - "src/platform/**"
+      - "tests/platform/**"
+      - "docs/platform/**"
+      - ".github/workflows/platform-android-plan.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  ndk-emulator-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Android scripts
+        run: |
+          bash -n tests/platform/android_emulator_plan.sh
+          bash -n tests/platform/android_environment_check.sh
+          bash -n tests/platform/android_emulator_smoke.sh
+          bash -n tests/platform/android_apk_smoke.sh
+          bash -n tests/platform/android_hostile_trigger_report.sh
+          bash -n tests/platform/android_ci_emulator_smoke.sh
+
+      - name: Run emulator APK and JNI smoke
+        if: github.event_name == 'pull_request'
+        run: tests/platform/android_ci_emulator_smoke.sh
+
+      - name: Run release-signed emulator APK and JNI smoke
+        if: github.event_name != 'pull_request'
+        env:
+          ANDROID_KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: tests/platform/android_ci_emulator_smoke.sh
+
+      - name: Validate Android GitHub Actions evidence
+        if: github.event_name != 'pull_request'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/audit/verify_github_actions_evidence.py --root . \
+            --output docs/qa/reports/android-github-actions-verification.json \
+            --expected-workflow platform-android \
+            --expected-workflow-path .github/workflows/platform-android-plan.yml \
+            --artifact-name android-emulator-smoke-evidence \
+            docs/qa/reports/android-apk-smoke.json \
+            docs/qa/reports/android-emulator-smoke.json
+          python3 scripts/audit/verify_github_actions_evidence.py --root . \
+            --output docs/qa/reports/android-hostile-github-actions-verification.json \
+            --expected-workflow platform-android \
+            --expected-workflow-path .github/workflows/platform-android-plan.yml \
+            --artifact-name android-emulator-smoke-evidence \
+            docs/qa/reports/android-hostile-triggers.json
+
+      - name: Upload Android evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-emulator-smoke-evidence
+          path: |
+            docs/qa/reports/android-*.json
+            build/android-apk-smoke/vmp-smoke.apk
+            build/android-x86_64/*.so
+            build/android-arm64-v8a/*.so
+            build/android-emulator.log
+          if-no-files-found: warn

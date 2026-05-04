@@ -1,0 +1,21 @@
+{
+  "artifacts": [
+    {
+      "bytes": 86822,
+      "kind": "dll",
+      "path": "build/windows-cross/vmp_platform.dll"
+    },
+    {
+      "bytes": 117403,
+      "kind": "exe",
+      "path": "build/windows-cross/vmp_platform_smoke.exe"
+    }
+  ],
+  "blocking_note": "Generated PE artifacts are local cross-build evidence only; Windows GitHub Actions execution is still required for hard acceptance.",
+  "ci_execution": false,
+  "forbidden_strings_present": false,
+  "local_cross_compile": true,
+  "pe_format": "pei-x86-64",
+  "schema": "vmp.platform.windows_cross_build.v1",
+  "status": "partial"
+}

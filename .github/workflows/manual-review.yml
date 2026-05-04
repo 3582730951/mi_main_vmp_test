@@ -1,0 +1,34 @@
+name: manual-review
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  verify-imported-review:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate imported IDA and OllyDbg review evidence
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python3 scripts/audit/verify_github_actions_evidence.py --root . \
+            --output docs/qa/reports/ida-ollydbg-github-actions-verification.json \
+            --expected-workflow manual-review \
+            --expected-workflow-path .github/workflows/manual-review.yml \
+            --artifact-name manual-review-evidence \
+            docs/qa/reports/ida-ollydbg-review.json
+
+      - name: Upload manual review evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: manual-review-evidence
+          path: docs/qa/reports/*.json
+          if-no-files-found: error

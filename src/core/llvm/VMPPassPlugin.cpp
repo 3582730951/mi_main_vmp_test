@@ -1,0 +1,1846 @@
+#include "../Bytecode.h"
+#include "../ProtectionConfig.h"
+
+#include "llvm/ADT/StringRef.h"
+#include "llvm/ADT/DenseMap.h"
+#include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/IR/Constants.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/Instructions.h"
+#include "llvm/IR/LLVMContext.h"
+#include "llvm/IR/MDBuilder.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/PassManager.h"
+#include "llvm/Passes/PassBuilder.h"
+#include "llvm/Passes/PassPlugin.h"
+#include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/raw_ostream.h"
+#include "llvm/Transforms/Utils/Cloning.h"
+
+#include <array>
+#include <cstdlib>
+#include <cstdint>
+#include <exception>
+#include <optional>
+#include <sstream>
+#include <string>
+#include <vector>
+
+using namespace llvm;
+
+namespace {
+
+constexpr StringLiteral kPluginVersion = "0.1.0";
+
+constexpr std::array<StringLiteral, 15> kPipelineStages = {
+    "vmp-config-load",
+    "vmp-function-marker",
+    "vmp-ir-normalize",
+    "vmp-block-split",
+    "vmp-flatten",
+    "vmp-bogus-branch",
+    "vmp-instruction-substitution",
+    "vmp-const-string-encryption",
+    "vmp-ir-to-bytecode",
+    "vmp-opcode-randomize",
+    "vmp-bytecode-encrypt",
+    "vmp-nesting",
+    "vmp-anti-analysis-hooks",
+    "vmp-function-replacement",
+    "vmp-report",
+};
+
+constexpr StringLiteral kDefaultRuntimeSeed = "llvm-plugin-sample-seed-v1";
+constexpr std::uint64_t kRuntimePlatformSalt = 0x766d706c6c766d70ULL;
+constexpr std::uint32_t kDefaultRuntimeVmLevel = 2;
+constexpr StringLiteral kLoweringName = "ir-subset-i32-recursive-cfg-expr-bitwise-safe-dynshift-trunccast-stack-select-callhost-branch-phi-vm-runtime";
+constexpr StringLiteral kGeneratedBytecodeMarker = "llvm-plugin-generated-bytecode-v1";
+constexpr std::uint8_t kHostArgScratch0 = 14;
+constexpr std::uint8_t kHostArgScratch1 = 15;
+
+cl::opt<std::string> VMPConfigPath(
+    "vmp-config",
+    cl::desc("Path to a VM protection YAML config used by the VMP pass plugin"),
+    cl::value_desc("path"),
+    cl::init(""));
+
+const vmp::core::ProtectionConfig &activeConfig() {
+    static const vmp::core::ProtectionConfig Config = [] {
+        if (!VMPConfigPath.empty()) {
+            try {
+                return vmp::core::parseProtectionConfigFile(VMPConfigPath.getValue());
+            } catch (const std::exception &Error) {
+                report_fatal_error(Twine("failed to load vmp config: ") + Error.what());
+            }
+        }
+        if (const char *EnvConfig = std::getenv("VMP_PROTECT_CONFIG")) {
+            if (EnvConfig[0] != '\0') {
+                try {
+                    return vmp::core::parseProtectionConfigFile(EnvConfig);
+                } catch (const std::exception &Error) {
+                    report_fatal_error(Twine("failed to load VMP_PROTECT_CONFIG: ") + Error.what());
+                }
+            }
+        }
+        vmp::core::ProtectionConfig DefaultConfig;
+        DefaultConfig.seed = kDefaultRuntimeSeed.str();
+        DefaultConfig.vmLevel = kDefaultRuntimeVmLevel;
+        return DefaultConfig;
+    }();
+    return Config;
+}
+
+std::string seedMaterialForConfig(const vmp::core::ProtectionConfig &Config) {
+    return std::to_string(vmp::core::stableHash64(Config.seed));
+}
+
+std::uint64_t seedHashForConfig(const vmp::core::ProtectionConfig &Config) {
+    return vmp::core::stableHash64(Config.seed);
+}
+
+std::uint32_t vmLevelForFunction(const vmp::core::ProtectionConfig &Config, const Function &F) {
+    const std::string Name = F.getName().str();
+    if (const auto FunctionConfig = Config.findFunction(Name)) {
+        return FunctionConfig->vmLevel;
+    }
+    return Config.vmLevel;
+}
+
+bool isKnownStage(StringRef Name) {
+    for (StringRef Stage : kPipelineStages) {
+        if (Name == Stage) {
+            return true;
+        }
+    }
+    return false;
+}
+
+StringRef stageKind(StringRef Name) {
+    if (Name == "vmp-config-load") {
+        return "config";
+    }
+    if (Name == "vmp-function-marker") {
+        return "selector";
+    }
+    if (Name == "vmp-block-split" || Name == "vmp-bogus-branch" || Name == "vmp-instruction-substitution") {
+        return "transform";
+    }
+    if (Name == "vmp-ir-to-bytecode") {
+        return "lowering";
+    }
+    if (Name == "vmp-function-replacement") {
+        return "replacement";
+    }
+    if (Name == "vmp-report") {
+        return "report_only";
+    }
+    return "placeholder_noop";
+}
+
+bool stageIsImplemented(StringRef Name) {
+    return stageKind(Name) != "placeholder_noop" && stageKind(Name) != "report_only";
+}
+
+bool shouldMarkFunction(const Function &F) {
+    if (F.isDeclaration()) {
+        return false;
+    }
+    const auto &Config = activeConfig();
+    if (!Config.functions.empty()) {
+        const std::string Name = F.getName().str();
+        const auto FunctionConfig = Config.findFunction(Name);
+        return FunctionConfig.has_value() && FunctionConfig->protect;
+    }
+    if (F.hasFnAttribute("vmp.protect")) {
+        return true;
+    }
+    return F.getName().contains_insensitive("license") ||
+           F.getName().contains_insensitive("secret") ||
+           F.getName().contains_insensitive("auth");
+}
+
+bool isSelectedFunction(const Function &F) {
+    return !F.isDeclaration() && F.getMetadata("vmp.protect") != nullptr;
+}
+
+void recordStage(Module &M, StringRef StageName) {
+    LLVMContext &Ctx = M.getContext();
+    NamedMDNode *Stages = M.getOrInsertNamedMetadata("vmp.pipeline.stages");
+    Stages->addOperand(MDNode::get(Ctx, MDString::get(Ctx, StageName)));
+}
+
+Value *buildOpaqueFalse(Function &F, IRBuilder<> &B) {
+    for (Argument &Arg : F.args()) {
+        if (!Arg.getType()->isIntegerTy()) {
+            continue;
+        }
+        Value *Masked = B.CreateAnd(&Arg, ConstantInt::get(Arg.getType(), 0), "vmp.opaque.mask");
+        return B.CreateICmpNE(Masked, ConstantInt::get(Arg.getType(), 0), "vmp.opaque.false");
+    }
+    return ConstantInt::getFalse(F.getContext());
+}
+
+bool insertBogusDispatch(Module &M) {
+    bool Changed = false;
+    for (Function &F : M) {
+        if (!isSelectedFunction(F) || F.empty()) {
+            continue;
+        }
+
+        BranchInst *Branch = nullptr;
+        for (BasicBlock &BB : F) {
+            auto *Candidate = dyn_cast<BranchInst>(BB.getTerminator());
+            if (Candidate != nullptr && Candidate->isConditional()) {
+                Branch = Candidate;
+                break;
+            }
+        }
+        if (Branch == nullptr) {
+            continue;
+        }
+        BasicBlock *Source = Branch->getParent();
+
+        BasicBlock *Dispatch = BasicBlock::Create(F.getContext(), "vmp.dispatch", &F, Branch->getSuccessor(0));
+        BasicBlock *FakeXref = BasicBlock::Create(F.getContext(), "vmp.fake.xref", &F, Dispatch);
+
+        Branch->removeFromParent();
+        Dispatch->getInstList().push_back(Branch);
+
+        for (unsigned Index = 0; Index < Branch->getNumSuccessors(); ++Index) {
+            BasicBlock *Successor = Branch->getSuccessor(Index);
+            for (PHINode &Phi : Successor->phis()) {
+                Phi.replaceIncomingBlockWith(Source, Dispatch);
+            }
+        }
+
+        IRBuilder<> FakeBuilder(FakeXref);
+        FakeBuilder.CreateBr(Dispatch);
+
+        IRBuilder<> EntryBuilder(Source);
+        EntryBuilder.CreateCondBr(buildOpaqueFalse(F, EntryBuilder), FakeXref, Dispatch);
+        Changed = true;
+    }
+    return Changed;
+}
+
+bool splitProtectedBlocks(Module &M) {
+    SmallVector<Instruction *, 16> SplitPoints;
+    for (Function &F : M) {
+        if (!isSelectedFunction(F)) {
+            continue;
+        }
+        for (BasicBlock &BB : F) {
+            if (BB.getName().startswith("vmp.")) {
+                continue;
+            }
+            Instruction *Terminator = BB.getTerminator();
+            if (Terminator == nullptr || Terminator == &BB.front()) {
+                continue;
+            }
+            unsigned NonPhiCount = 0;
+            for (Instruction &I : BB) {
+                if (isa<PHINode>(&I)) {
+                    continue;
+                }
+                ++NonPhiCount;
+            }
+            if (NonPhiCount >= 2) {
+                SplitPoints.push_back(Terminator);
+            }
+        }
+    }
+
+    for (Instruction *Point : SplitPoints) {
+        Point->getParent()->splitBasicBlock(Point, "vmp.split");
+    }
+    return !SplitPoints.empty();
+}
+
+bool substituteIntegerComparisons(Module &M) {
+    SmallVector<ICmpInst *, 16> Comparisons;
+    for (Function &F : M) {
+        if (!isSelectedFunction(F)) {
+            continue;
+        }
+        for (BasicBlock &BB : F) {
+            for (Instruction &I : BB) {
+                auto *Cmp = dyn_cast<ICmpInst>(&I);
+                if (Cmp == nullptr || !Cmp->getOperand(0)->getType()->isIntegerTy()) {
+                    continue;
+                }
+                Comparisons.push_back(Cmp);
+            }
+        }
+    }
+
+    for (ICmpInst *Cmp : Comparisons) {
+        auto *IntTy = cast<IntegerType>(Cmp->getOperand(0)->getType());
+        const unsigned Width = IntTy->getBitWidth();
+        IRBuilder<> B(Cmp);
+        Value *Key = ConstantInt::get(IntTy, APInt(Width, 0x5a5a5a5a5a5a5a5aULL));
+        Value *Mixed = B.CreateXor(Cmp->getOperand(0), Key, "vmp.sub.xor");
+        Value *Restored = B.CreateXor(Mixed, Key, "vmp.sub.restore");
+        Cmp->setOperand(0, Restored);
+    }
+
+    return !Comparisons.empty();
+}
+
+bool supportsReplacementStub(const Function &F) {
+    if (!F.getReturnType()->isIntegerTy(32) || F.arg_size() > 4) {
+        return false;
+    }
+    for (const Argument &Arg : F.args()) {
+        if (!Arg.getType()->isIntegerTy(32)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool isExactOrdinaryAddBridge(const Function &Callee) {
+    if (Callee.getName() != "ordinary_add" || Callee.isDeclaration() || Callee.arg_size() != 2 ||
+        !Callee.hasLocalLinkage() || !Callee.getReturnType()->isIntegerTy(32) || Callee.size() != 1) {
+        return false;
+    }
+    for (const Argument &Arg : Callee.args()) {
+        if (!Arg.getType()->isIntegerTy(32)) {
+            return false;
+        }
+    }
+
+    const BasicBlock &Entry = Callee.getEntryBlock();
+    const BinaryOperator *Add = nullptr;
+    const ReturnInst *Ret = nullptr;
+    for (const Instruction &I : Entry) {
+        if (auto *BinOp = dyn_cast<BinaryOperator>(&I)) {
+            if (Add != nullptr || BinOp->getOpcode() != Instruction::Add || !BinOp->getType()->isIntegerTy(32)) {
+                return false;
+            }
+            Add = BinOp;
+            continue;
+        }
+        if (auto *Return = dyn_cast<ReturnInst>(&I)) {
+            if (Ret != nullptr || Return->getReturnValue() != Add) {
+                return false;
+            }
+            Ret = Return;
+            continue;
+        }
+        return false;
+    }
+    if (Add == nullptr || Ret == nullptr) {
+        return false;
+    }
+
+    auto ArgIt = Callee.arg_begin();
+    const Argument *First = &*ArgIt++;
+    const Argument *Second = &*ArgIt;
+    return (Add->getOperand(0) == First && Add->getOperand(1) == Second) ||
+           (Add->getOperand(0) == Second && Add->getOperand(1) == First);
+}
+
+bool isSupportedHostBridgeCall(const CallInst &Call) {
+    Function *Callee = Call.getCalledFunction();
+    return Callee != nullptr && Call.arg_size() == 2 && Call.getType()->isIntegerTy(32) &&
+           isExactOrdinaryAddBridge(*Callee);
+}
+
+bool isSupportedSelect(const SelectInst &Select) {
+    if (!Select.getType()->isIntegerTy(32) || !Select.getTrueValue()->getType()->isIntegerTy(32) ||
+        !Select.getFalseValue()->getType()->isIntegerTy(32)) {
+        return false;
+    }
+    auto *Cmp = dyn_cast<ICmpInst>(Select.getCondition());
+    return Cmp != nullptr && Cmp->getOperand(0)->getType()->isIntegerTy(32) &&
+           Cmp->getOperand(1)->getType()->isIntegerTy(32) &&
+           (Cmp->getPredicate() == ICmpInst::ICMP_EQ || Cmp->getPredicate() == ICmpInst::ICMP_NE ||
+            Cmp->getPredicate() == ICmpInst::ICMP_SGT || Cmp->getPredicate() == ICmpInst::ICMP_SLT ||
+            Cmp->getPredicate() == ICmpInst::ICMP_SGE || Cmp->getPredicate() == ICmpInst::ICMP_SLE ||
+            Cmp->getPredicate() == ICmpInst::ICMP_UGT || Cmp->getPredicate() == ICmpInst::ICMP_ULT ||
+            Cmp->getPredicate() == ICmpInst::ICMP_UGE || Cmp->getPredicate() == ICmpInst::ICMP_ULE);
+}
+
+bool isSupportedBoolToI32Cast(const CastInst &Cast) {
+    if ((Cast.getOpcode() != Instruction::ZExt && Cast.getOpcode() != Instruction::SExt) ||
+        !Cast.getType()->isIntegerTy(32) || !Cast.getOperand(0)->getType()->isIntegerTy(1)) {
+        return false;
+    }
+    auto *Cmp = dyn_cast<ICmpInst>(Cast.getOperand(0));
+    return Cmp != nullptr && Cmp->getOperand(0)->getType()->isIntegerTy(32) &&
+           Cmp->getOperand(1)->getType()->isIntegerTy(32) &&
+           (Cmp->getPredicate() == ICmpInst::ICMP_EQ || Cmp->getPredicate() == ICmpInst::ICMP_NE ||
+            Cmp->getPredicate() == ICmpInst::ICMP_SGT || Cmp->getPredicate() == ICmpInst::ICMP_SLT ||
+            Cmp->getPredicate() == ICmpInst::ICMP_SGE || Cmp->getPredicate() == ICmpInst::ICMP_SLE ||
+            Cmp->getPredicate() == ICmpInst::ICMP_UGT || Cmp->getPredicate() == ICmpInst::ICMP_ULT ||
+            Cmp->getPredicate() == ICmpInst::ICMP_UGE || Cmp->getPredicate() == ICmpInst::ICMP_ULE);
+}
+
+bool isSupportedI32ToNarrowTrunc(const CastInst &Cast) {
+    if (Cast.getOpcode() != Instruction::Trunc || !Cast.getOperand(0)->getType()->isIntegerTy(32)) {
+        return false;
+    }
+    auto *ResultTy = dyn_cast<IntegerType>(Cast.getType());
+    if (ResultTy == nullptr) {
+        return false;
+    }
+    const unsigned Width = ResultTy->getBitWidth();
+    return Width == 1 || Width == 8 || Width == 16;
+}
+
+bool isSupportedNarrowTruncToI32Cast(const CastInst &Cast) {
+    if ((Cast.getOpcode() != Instruction::ZExt && Cast.getOpcode() != Instruction::SExt) ||
+        !Cast.getType()->isIntegerTy(32)) {
+        return false;
+    }
+    auto *Trunc = dyn_cast<CastInst>(Cast.getOperand(0));
+    return Trunc != nullptr && isSupportedI32ToNarrowTrunc(*Trunc);
+}
+
+bool isSupportedNarrowTruncToWideCast(const CastInst &Cast) {
+    if (Cast.getOpcode() != Instruction::ZExt && Cast.getOpcode() != Instruction::SExt) {
+        return false;
+    }
+    auto *ResultTy = dyn_cast<IntegerType>(Cast.getType());
+    if (ResultTy == nullptr || ResultTy->getBitWidth() <= 32U) {
+        return false;
+    }
+    auto *Trunc = dyn_cast<CastInst>(Cast.getOperand(0));
+    return Trunc != nullptr && isSupportedI32ToNarrowTrunc(*Trunc);
+}
+
+bool isSupportedNarrowTruncViaWideToI32Cast(const CastInst &Cast) {
+    if (Cast.getOpcode() != Instruction::Trunc || !Cast.getType()->isIntegerTy(32)) {
+        return false;
+    }
+    auto *Wide = dyn_cast<CastInst>(Cast.getOperand(0));
+    if (Wide == nullptr || !isSupportedNarrowTruncToWideCast(*Wide)) {
+        return false;
+    }
+    return true;
+}
+
+bool isSupportedLocalI32Alloca(const AllocaInst &Alloca) {
+    auto *ArraySize = dyn_cast<ConstantInt>(Alloca.getArraySize());
+    return Alloca.getType()->getPointerAddressSpace() == 0 && Alloca.getAllocatedType()->isIntegerTy(32) &&
+           ArraySize != nullptr && ArraySize->isOne();
+}
+
+const AllocaInst *asSupportedLocalI32Alloca(const Value *Pointer) {
+    if (Pointer == nullptr) {
+        return nullptr;
+    }
+    auto *Alloca = dyn_cast<AllocaInst>(Pointer);
+    if (Alloca == nullptr || !isSupportedLocalI32Alloca(*Alloca)) {
+        return nullptr;
+    }
+    return Alloca;
+}
+
+bool isSupportedLocalI32Load(const LoadInst &Load) {
+    return Load.isSimple() && Load.getType()->isIntegerTy(32) &&
+           asSupportedLocalI32Alloca(Load.getPointerOperand()) != nullptr;
+}
+
+bool isSupportedLocalI32Store(const StoreInst &Store) {
+    return Store.isSimple() && Store.getValueOperand()->getType()->isIntegerTy(32) &&
+           asSupportedLocalI32Alloca(Store.getPointerOperand()) != nullptr;
+}
+
+bool isLocalMemoryInstruction(const Instruction &I) {
+    return isa<AllocaInst>(&I) || isa<LoadInst>(&I) || isa<StoreInst>(&I);
+}
+
+bool isSupportedI32ShiftAmount(const Value *V) {
+    auto *Constant = dyn_cast<ConstantInt>(V);
+    if (Constant != nullptr) {
+        return Constant->getType()->isIntegerTy(32) && Constant->getValue().getLimitedValue(32) < 32;
+    }
+
+    auto *Mask = dyn_cast<BinaryOperator>(V);
+    if (Mask == nullptr || Mask->getOpcode() != Instruction::And || !Mask->getType()->isIntegerTy(32)) {
+        return false;
+    }
+    auto *Lhs = dyn_cast<ConstantInt>(Mask->getOperand(0));
+    auto *Rhs = dyn_cast<ConstantInt>(Mask->getOperand(1));
+    return (Lhs != nullptr && Lhs->getType()->isIntegerTy(32) && Lhs->getZExtValue() == 31U) ||
+           (Rhs != nullptr && Rhs->getType()->isIntegerTy(32) && Rhs->getZExtValue() == 31U);
+}
+
+bool isSupportedI32Shift(const BinaryOperator &BinOp) {
+    return BinOp.getType()->isIntegerTy(32) &&
+           (BinOp.getOpcode() == Instruction::Shl || BinOp.getOpcode() == Instruction::LShr ||
+            BinOp.getOpcode() == Instruction::AShr) &&
+           isSupportedI32ShiftAmount(BinOp.getOperand(1));
+}
+
+bool hasUnsupportedPoisonGeneratingFlags(const BinaryOperator &BinOp) {
+    switch (BinOp.getOpcode()) {
+    case Instruction::Add:
+    case Instruction::Sub:
+    case Instruction::Mul:
+    case Instruction::Shl:
+        return BinOp.hasNoUnsignedWrap() || BinOp.hasNoSignedWrap();
+    case Instruction::LShr:
+    case Instruction::AShr:
+        return BinOp.isExact();
+    default:
+        return false;
+    }
+}
+
+bool hasLocalMemoryInstructions(const Function &F) {
+    for (const BasicBlock &BB : F) {
+        for (const Instruction &I : BB) {
+            if (isLocalMemoryInstruction(I)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+bool localMemoryShapeIsSafe(const Function &F) {
+    unsigned SlotCount = 0;
+
+    for (const BasicBlock &BB : F) {
+        for (const Instruction &I : BB) {
+            if (isa<PHINode>(&I)) {
+                return false;
+            }
+            if (auto *Alloca = dyn_cast<AllocaInst>(&I)) {
+                if (!isSupportedLocalI32Alloca(*Alloca) || ++SlotCount > 32U) {
+                    return false;
+                }
+                continue;
+            }
+            if (auto *Store = dyn_cast<StoreInst>(&I)) {
+                if (!isSupportedLocalI32Store(*Store)) {
+                    return false;
+                }
+                continue;
+            }
+            if (auto *Load = dyn_cast<LoadInst>(&I)) {
+                if (!isSupportedLocalI32Load(*Load)) {
+                    return false;
+                }
+            }
+        }
+    }
+    return true;
+}
+
+bool isLoweringSubsetInstruction(const Instruction &I) {
+    if (auto *Alloca = dyn_cast<AllocaInst>(&I)) {
+        return isSupportedLocalI32Alloca(*Alloca);
+    }
+    if (auto *Load = dyn_cast<LoadInst>(&I)) {
+        return isSupportedLocalI32Load(*Load);
+    }
+    if (auto *Store = dyn_cast<StoreInst>(&I)) {
+        return isSupportedLocalI32Store(*Store);
+    }
+    if (auto *BinOp = dyn_cast<BinaryOperator>(&I)) {
+        if (!BinOp->getType()->isIntegerTy(32) || hasUnsupportedPoisonGeneratingFlags(*BinOp)) {
+            return false;
+        }
+        return BinOp->getOpcode() == Instruction::Add || BinOp->getOpcode() == Instruction::Sub ||
+               BinOp->getOpcode() == Instruction::Mul || BinOp->getOpcode() == Instruction::And ||
+               BinOp->getOpcode() == Instruction::Or || BinOp->getOpcode() == Instruction::Xor ||
+               isSupportedI32Shift(*BinOp);
+    }
+    if (auto *Cmp = dyn_cast<ICmpInst>(&I)) {
+        if (!Cmp->getOperand(0)->getType()->isIntegerTy(32) || !Cmp->getOperand(1)->getType()->isIntegerTy(32)) {
+            return false;
+        }
+        return Cmp->getPredicate() == ICmpInst::ICMP_EQ || Cmp->getPredicate() == ICmpInst::ICMP_NE ||
+               Cmp->getPredicate() == ICmpInst::ICMP_SGT || Cmp->getPredicate() == ICmpInst::ICMP_SLT ||
+               Cmp->getPredicate() == ICmpInst::ICMP_SGE || Cmp->getPredicate() == ICmpInst::ICMP_SLE ||
+               Cmp->getPredicate() == ICmpInst::ICMP_UGT || Cmp->getPredicate() == ICmpInst::ICMP_ULT ||
+               Cmp->getPredicate() == ICmpInst::ICMP_UGE || Cmp->getPredicate() == ICmpInst::ICMP_ULE;
+    }
+    if (auto *Select = dyn_cast<SelectInst>(&I)) {
+        return isSupportedSelect(*Select);
+    }
+    if (auto *Cast = dyn_cast<CastInst>(&I)) {
+        return isSupportedBoolToI32Cast(*Cast) || isSupportedI32ToNarrowTrunc(*Cast) ||
+               isSupportedNarrowTruncToI32Cast(*Cast) || isSupportedNarrowTruncToWideCast(*Cast) ||
+               isSupportedNarrowTruncViaWideToI32Cast(*Cast);
+    }
+    if (auto *Phi = dyn_cast<PHINode>(&I)) {
+        if (!Phi->getType()->isIntegerTy(32)) {
+            return false;
+        }
+        for (Value *Incoming : Phi->incoming_values()) {
+            if (!Incoming->getType()->isIntegerTy(32)) {
+                return false;
+            }
+        }
+        return true;
+    }
+    if (auto *Branch = dyn_cast<BranchInst>(&I)) {
+        return Branch->isConditional() || Branch->isUnconditional();
+    }
+    if (auto *Ret = dyn_cast<ReturnInst>(&I)) {
+        return Ret->getNumOperands() == 1 && Ret->getReturnValue()->getType()->isIntegerTy(32);
+    }
+    if (auto *Call = dyn_cast<CallInst>(&I)) {
+        return isSupportedHostBridgeCall(*Call);
+    }
+    return false;
+}
+
+bool fitsLoweringSubset(const Function &F) {
+    for (const BasicBlock &BB : F) {
+        for (const Instruction &I : BB) {
+            if (!isLoweringSubsetInstruction(I)) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+void appendU32(std::vector<std::uint8_t> &Out, std::uint32_t Value) {
+    for (unsigned Index = 0; Index < 4; ++Index) {
+        Out.push_back(static_cast<std::uint8_t>((Value >> (Index * 8U)) & 0xffU));
+    }
+}
+
+void writeU32(std::vector<std::uint8_t> &Out, std::size_t Offset, std::uint32_t Value) {
+    for (unsigned Index = 0; Index < 4; ++Index) {
+        Out.at(Offset + Index) = static_cast<std::uint8_t>((Value >> (Index * 8U)) & 0xffU);
+    }
+}
+
+void appendU64(std::vector<std::uint8_t> &Out, std::uint64_t Value) {
+    for (unsigned Index = 0; Index < 8; ++Index) {
+        Out.push_back(static_cast<std::uint8_t>((Value >> (Index * 8U)) & 0xffU));
+    }
+}
+
+std::vector<std::uint8_t> serializeRuntimeArtifact(const vmp::core::OpcodeMap &Map,
+                                                   const vmp::core::BytecodeChunk &Chunk,
+                                                   std::uint64_t SeedHash) {
+    std::vector<std::uint8_t> Out;
+    const std::array<std::uint8_t, 8> Magic{'V', 'M', 'P', 'I', 'R', 'L', '4', '\0'};
+    Out.insert(Out.end(), Magic.begin(), Magic.end());
+    const std::size_t SizeOffset = Out.size();
+    appendU32(Out, 0);
+    appendU32(Out, Chunk.version);
+    appendU32(Out, Chunk.vmLevel);
+    appendU64(Out, Chunk.functionHash);
+    appendU64(Out, Chunk.platformSalt);
+    appendU64(Out, Chunk.nonce);
+    appendU64(Out, Chunk.authTag);
+    appendU64(Out, SeedHash);
+    appendU32(Out, static_cast<std::uint32_t>(Map.encode.size()));
+    Out.insert(Out.end(), Map.encode.begin(), Map.encode.end());
+    appendU32(Out, static_cast<std::uint32_t>(Chunk.encryptedPayload.size()));
+    Out.insert(Out.end(), Chunk.encryptedPayload.begin(), Chunk.encryptedPayload.end());
+    writeU32(Out, SizeOffset, static_cast<std::uint32_t>(Out.size()));
+    return Out;
+}
+
+class I32DiamondLowering final {
+public:
+    explicit I32DiamondLowering(const Function &F) : Function_(F) {
+        std::uint8_t Reg = 1;
+        for (const Argument &Arg : F.args()) {
+            ValueRegs_[&Arg] = Reg++;
+        }
+        NextReg_ = Reg;
+    }
+
+    std::optional<std::vector<vmp::core::Instruction>> lower() {
+        resetFunctionState();
+        if (!appendControlPath(&Function_.getEntryBlock())) {
+            return std::nullopt;
+        }
+        return Program_;
+    }
+
+private:
+    struct BranchCandidate {
+        const BranchInst *branch = nullptr;
+        SmallVector<const BasicBlock *, 8> prefixPath;
+        bool unsupportedControl = false;
+    };
+
+    static bool isSupportedI32(const Value *V) {
+        return V->getType()->isIntegerTy(32);
+    }
+
+    static bool isZeroIntegerConstant(const Value *V) {
+        auto *Constant = dyn_cast<ConstantInt>(V);
+        return Constant != nullptr && Constant->isZero();
+    }
+
+    static const Value *stripRestoringXor(const Value *V) {
+        auto *Outer = dyn_cast<BinaryOperator>(V);
+        if (Outer == nullptr || Outer->getOpcode() != Instruction::Xor) {
+            return V;
+        }
+
+        const ConstantInt *OuterKey = dyn_cast<ConstantInt>(Outer->getOperand(0));
+        const Value *InnerValue = Outer->getOperand(1);
+        if (OuterKey == nullptr) {
+            OuterKey = dyn_cast<ConstantInt>(Outer->getOperand(1));
+            InnerValue = Outer->getOperand(0);
+        }
+        auto *Inner = dyn_cast<BinaryOperator>(InnerValue);
+        if (OuterKey == nullptr || Inner == nullptr || Inner->getOpcode() != Instruction::Xor) {
+            return V;
+        }
+
+        const ConstantInt *InnerKey = dyn_cast<ConstantInt>(Inner->getOperand(0));
+        const Value *BaseValue = Inner->getOperand(1);
+        if (InnerKey == nullptr) {
+            InnerKey = dyn_cast<ConstantInt>(Inner->getOperand(1));
+            BaseValue = Inner->getOperand(0);
+        }
+        if (InnerKey == nullptr || InnerKey->getValue() != OuterKey->getValue()) {
+            return V;
+        }
+        return BaseValue;
+    }
+
+    static bool isOpaqueFalseMask(const Value *V) {
+        V = stripRestoringXor(V);
+        auto *Mask = dyn_cast<BinaryOperator>(V);
+        return Mask != nullptr && Mask->getOpcode() == Instruction::And &&
+               (isZeroIntegerConstant(Mask->getOperand(0)) || isZeroIntegerConstant(Mask->getOperand(1)));
+    }
+
+    static bool isGeneratedOpaqueFalseCondition(const Value *Condition) {
+        if (isZeroIntegerConstant(Condition)) {
+            return true;
+        }
+        auto *Cmp = dyn_cast<ICmpInst>(Condition);
+        if (Cmp == nullptr || Cmp->getPredicate() != ICmpInst::ICMP_NE) {
+            return false;
+        }
+        return (isOpaqueFalseMask(Cmp->getOperand(0)) && isZeroIntegerConstant(Cmp->getOperand(1))) ||
+               (isOpaqueFalseMask(Cmp->getOperand(1)) && isZeroIntegerConstant(Cmp->getOperand(0)));
+    }
+
+    static bool isOpaqueFalseDispatchBranch(const BranchInst &Branch) {
+        if (!Branch.isConditional() || !isGeneratedOpaqueFalseCondition(Branch.getCondition())) {
+            return false;
+        }
+        const BasicBlock *FakeXref = Branch.getSuccessor(0);
+        auto *FakeBranch = dyn_cast<BranchInst>(FakeXref->getTerminator());
+        return FakeXref->size() == 1 && FakeBranch != nullptr && FakeBranch->isUnconditional() &&
+               FakeBranch->getSuccessor(0) == Branch.getSuccessor(1);
+    }
+
+    static bool hasReservedOpaqueDispatchNames(const BranchInst &Branch) {
+        if (!Branch.isConditional()) {
+            return false;
+        }
+        if (Branch.getCondition()->hasName() &&
+            Branch.getCondition()->getName().startswith("vmp.opaque.false")) {
+            return true;
+        }
+        for (unsigned Index = 0; Index < Branch.getNumSuccessors(); ++Index) {
+            if (Branch.getSuccessor(Index)->getName().startswith("vmp.fake.xref")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    BranchCandidate findEntryConditionalBranch() const {
+        SmallPtrSet<const BasicBlock *, 8> Seen;
+        SmallVector<const BasicBlock *, 8> Path;
+        const BasicBlock *Current = &Function_.getEntryBlock();
+        while (Current != nullptr && Seen.insert(Current).second) {
+            Path.push_back(Current);
+            auto *Ret = dyn_cast<ReturnInst>(Current->getTerminator());
+            if (Ret != nullptr) {
+                return {};
+            }
+
+            auto *Branch = dyn_cast<BranchInst>(Current->getTerminator());
+            if (Branch == nullptr) {
+                return {nullptr, {}, true};
+            }
+            if (Branch->isUnconditional()) {
+                Current = Branch->getSuccessor(0);
+                continue;
+            }
+            if (isOpaqueFalseDispatchBranch(*Branch)) {
+                Current = Branch->getSuccessor(1);
+                continue;
+            }
+            return {Branch, Path, false};
+        }
+        return {nullptr, {}, true};
+    }
+
+    static bool isSupportedPredicate(ICmpInst::Predicate Predicate) {
+        return Predicate == ICmpInst::ICMP_EQ || Predicate == ICmpInst::ICMP_NE ||
+               Predicate == ICmpInst::ICMP_SGT || Predicate == ICmpInst::ICMP_SLT ||
+               Predicate == ICmpInst::ICMP_SGE || Predicate == ICmpInst::ICMP_SLE ||
+               Predicate == ICmpInst::ICMP_UGT || Predicate == ICmpInst::ICMP_ULT ||
+               Predicate == ICmpInst::ICMP_UGE || Predicate == ICmpInst::ICMP_ULE;
+    }
+
+    static vmp::core::SemanticOpcode compareOpcode(ICmpInst::Predicate Predicate) {
+        switch (Predicate) {
+        case ICmpInst::ICMP_EQ:
+            return vmp::core::SemanticOpcode::CmpEq;
+        case ICmpInst::ICMP_NE:
+            return vmp::core::SemanticOpcode::CmpNe;
+        case ICmpInst::ICMP_SGT:
+        case ICmpInst::ICMP_SLT:
+            return vmp::core::SemanticOpcode::CmpSgt;
+        case ICmpInst::ICMP_SGE:
+            return vmp::core::SemanticOpcode::CmpSge;
+        case ICmpInst::ICMP_SLE:
+            return vmp::core::SemanticOpcode::CmpSle;
+        case ICmpInst::ICMP_UGT:
+        case ICmpInst::ICMP_ULT:
+            return vmp::core::SemanticOpcode::CmpUgt;
+        case ICmpInst::ICMP_UGE:
+            return vmp::core::SemanticOpcode::CmpUge;
+        case ICmpInst::ICMP_ULE:
+            return vmp::core::SemanticOpcode::CmpUle;
+        default:
+            llvm_unreachable("unsupported i32 compare predicate");
+        }
+    }
+
+    void appendCompare(ICmpInst::Predicate Predicate, std::uint8_t Lhs, std::uint8_t Rhs) {
+        const bool SwapOperands = Predicate == ICmpInst::ICMP_SLT || Predicate == ICmpInst::ICMP_ULT;
+        const std::uint8_t Left = SwapOperands ? Rhs : Lhs;
+        const std::uint8_t Right = SwapOperands ? Lhs : Rhs;
+        Program_.push_back({compareOpcode(Predicate), 0, Left, Right, 0});
+    }
+
+    struct LoweringState {
+        DenseMap<const Value *, std::uint8_t> valueRegs;
+        std::uint8_t nextReg = 1;
+    };
+
+    struct PathLowering {
+        std::vector<vmp::core::Instruction> instructions;
+        std::uint8_t returnReg = 0;
+    };
+
+    struct ControlPathLowering {
+        std::vector<vmp::core::Instruction> instructions;
+    };
+
+    void resetFunctionState() {
+        Program_.clear();
+        ValueRegs_.clear();
+        StackSlots_.clear();
+        EmittedStores_.clear();
+        std::uint8_t Reg = 1;
+        for (const Argument &Arg : Function_.args()) {
+            ValueRegs_[&Arg] = Reg++;
+        }
+        NextReg_ = Reg;
+        ActiveReturnPath_.clear();
+        AllowHostCalls_ = true;
+    }
+
+    LoweringState captureState() const {
+        return LoweringState{ValueRegs_, NextReg_};
+    }
+
+    void restoreState(const LoweringState &State) {
+        ValueRegs_ = State.valueRegs;
+        NextReg_ = State.nextReg;
+        StackSlots_.clear();
+        EmittedStores_.clear();
+        AllowHostCalls_ = true;
+    }
+
+    std::optional<PathLowering> lowerIsolatedReturnPath(const BasicBlock *Start, const LoweringState &BaseState) {
+        Program_.clear();
+        restoreState(BaseState);
+        auto ReturnReg = lowerReturnPath(Start);
+        if (!ReturnReg) {
+            return std::nullopt;
+        }
+        return PathLowering{Program_, *ReturnReg};
+    }
+
+    std::optional<ControlPathLowering> lowerIsolatedControlPath(const BasicBlock *Start,
+                                                                const LoweringState &BaseState) {
+        Program_.clear();
+        restoreState(BaseState);
+        if (!appendControlPath(Start)) {
+            return std::nullopt;
+        }
+        return ControlPathLowering{Program_};
+    }
+
+    std::optional<std::vector<vmp::core::Instruction>> lowerBranch(const ICmpInst &Cmp, const BranchInst &Branch,
+                                                                   ArrayRef<const BasicBlock *> BranchPrefixPath) {
+        Program_.clear();
+        ValueRegs_.clear();
+        StackSlots_.clear();
+        EmittedStores_.clear();
+        std::uint8_t Reg = 1;
+        for (const Argument &Arg : Function_.args()) {
+            ValueRegs_[&Arg] = Reg++;
+        }
+        NextReg_ = Reg;
+        AllowHostCalls_ = true;
+
+        const auto SavedPath = ActiveReturnPath_;
+        ActiveReturnPath_.assign(BranchPrefixPath.begin(), BranchPrefixPath.end());
+        auto Lhs = lowerValue(Cmp.getOperand(0));
+        auto Rhs = lowerValue(Cmp.getOperand(1));
+        ActiveReturnPath_ = SavedPath;
+        if (!Lhs || !Rhs) {
+            return std::nullopt;
+        }
+
+        appendCompare(Cmp.getPredicate(), *Lhs, *Rhs);
+        const auto Prefix = Program_;
+        const auto BranchBaseState = captureState();
+
+        auto FalsePath = lowerIsolatedReturnPath(Branch.getSuccessor(1), BranchBaseState);
+        auto TruePath = lowerIsolatedReturnPath(Branch.getSuccessor(0), BranchBaseState);
+        if (!FalsePath || !TruePath) {
+            return std::nullopt;
+        }
+
+        Program_ = Prefix;
+        const std::size_t JumpIndex = Program_.size();
+        Program_.push_back({vmp::core::SemanticOpcode::JumpIfZero, 0, 0, 0, 0});
+
+        Program_.insert(Program_.end(), FalsePath->instructions.begin(), FalsePath->instructions.end());
+        Program_.push_back({vmp::core::SemanticOpcode::Ret, 0, FalsePath->returnReg, 0, 0});
+
+        const std::uint64_t TrueTarget = Program_.size();
+        Program_[JumpIndex].imm = TrueTarget;
+
+        Program_.insert(Program_.end(), TruePath->instructions.begin(), TruePath->instructions.end());
+        Program_.push_back({vmp::core::SemanticOpcode::Ret, 0, TruePath->returnReg, 0, 0});
+        return Program_;
+    }
+
+    std::optional<std::uint8_t> allocateReg() {
+        while (NextReg_ == kHostArgScratch0 || NextReg_ == kHostArgScratch1) {
+            ++NextReg_;
+        }
+        if (NextReg_ >= 16) {
+            return std::nullopt;
+        }
+        return NextReg_++;
+    }
+
+    std::uint64_t stackOffsetFor(const AllocaInst *Alloca) {
+        auto Found = StackSlots_.find(Alloca);
+        if (Found != StackSlots_.end()) {
+            return Found->second;
+        }
+        const std::uint64_t Offset = static_cast<std::uint64_t>(StackSlots_.size()) * 8ULL;
+        StackSlots_[Alloca] = Offset;
+        return Offset;
+    }
+
+    std::optional<std::uint8_t> emitLoadImm(std::uint64_t Imm) {
+        auto Reg = allocateReg();
+        if (!Reg) {
+            return std::nullopt;
+        }
+        Program_.push_back({vmp::core::SemanticOpcode::LoadImm, *Reg, 0, 0, Imm});
+        return Reg;
+    }
+
+    const StoreInst *findStoreForLoad(const LoadInst &Load) const {
+        const AllocaInst *Slot = asSupportedLocalI32Alloca(Load.getPointerOperand());
+        if (Slot == nullptr) {
+            return nullptr;
+        }
+
+        const StoreInst *LastStore = nullptr;
+        for (const BasicBlock *BB : ActiveReturnPath_) {
+            for (const Instruction &I : *BB) {
+                if (&I == &Load) {
+                    return LastStore;
+                }
+                auto *Store = dyn_cast<StoreInst>(&I);
+                if (Store == nullptr || !isSupportedLocalI32Store(*Store)) {
+                    continue;
+                }
+                if (asSupportedLocalI32Alloca(Store->getPointerOperand()) == Slot) {
+                    LastStore = Store;
+                }
+            }
+        }
+        return nullptr;
+    }
+
+    bool emitStoreForLoad(const LoadInst &Load) {
+        const StoreInst *Store = findStoreForLoad(Load);
+        if (Store == nullptr) {
+            return false;
+        }
+        if (EmittedStores_.count(Store) != 0) {
+            return true;
+        }
+        const AllocaInst *Slot = asSupportedLocalI32Alloca(Store->getPointerOperand());
+        auto StoredReg = lowerValue(Store->getValueOperand());
+        if (Slot == nullptr || !StoredReg) {
+            return false;
+        }
+        Program_.push_back({vmp::core::SemanticOpcode::Store, 0, *StoredReg, 0, stackOffsetFor(Slot)});
+        EmittedStores_.insert(Store);
+        return true;
+    }
+
+    std::optional<std::uint8_t> lowerNarrowTruncExtensionToI32(unsigned ExtensionOpcode, const CastInst &Trunc) {
+        auto SourceReg = lowerValue(Trunc.getOperand(0));
+        if (!SourceReg) {
+            return std::nullopt;
+        }
+
+        const unsigned Width = cast<IntegerType>(Trunc.getType())->getBitWidth();
+        if (ExtensionOpcode == Instruction::ZExt) {
+            auto MaskReg = emitLoadImm((1ULL << Width) - 1ULL);
+            auto Reg = allocateReg();
+            if (!MaskReg || !Reg) {
+                return std::nullopt;
+            }
+            Program_.push_back({vmp::core::SemanticOpcode::And, *Reg, *SourceReg, *MaskReg, 0});
+            return Reg;
+        }
+
+        if (ExtensionOpcode != Instruction::SExt) {
+            return std::nullopt;
+        }
+
+        const unsigned ShiftAmount = 32U - Width;
+        auto ShiftReg = emitLoadImm(ShiftAmount);
+        auto ShiftedReg = allocateReg();
+        auto Reg = allocateReg();
+        if (!ShiftReg || !ShiftedReg || !Reg) {
+            return std::nullopt;
+        }
+        Program_.push_back({vmp::core::SemanticOpcode::Shl, *ShiftedReg, *SourceReg, *ShiftReg, 0});
+        Program_.push_back({vmp::core::SemanticOpcode::AShr, *Reg, *ShiftedReg, *ShiftReg, 0});
+        return Reg;
+    }
+
+    void appendRebasedInstructions(ArrayRef<vmp::core::Instruction> Instructions, std::uint64_t Base) {
+        for (vmp::core::Instruction Inst : Instructions) {
+            if (Inst.op == vmp::core::SemanticOpcode::Jump ||
+                Inst.op == vmp::core::SemanticOpcode::JumpIfZero) {
+                Inst.imm += Base;
+            }
+            Program_.push_back(Inst);
+        }
+    }
+
+    std::optional<std::uint8_t> lowerValue(const Value *V) {
+        if (!isSupportedI32(V)) {
+            return std::nullopt;
+        }
+        if (auto Found = ValueRegs_.find(V); Found != ValueRegs_.end()) {
+            return Found->second;
+        }
+
+        if (auto *Constant = dyn_cast<ConstantInt>(V)) {
+            auto Reg = emitLoadImm(Constant->getValue().getZExtValue());
+            if (!Reg) {
+                return std::nullopt;
+            }
+            ValueRegs_[V] = *Reg;
+            return Reg;
+        }
+
+        auto *Load = dyn_cast<LoadInst>(V);
+        if (Load != nullptr) {
+            const AllocaInst *Slot = asSupportedLocalI32Alloca(Load->getPointerOperand());
+            if (Slot == nullptr || !emitStoreForLoad(*Load)) {
+                return std::nullopt;
+            }
+            auto Reg = allocateReg();
+            if (!Reg) {
+                return std::nullopt;
+            }
+            Program_.push_back({vmp::core::SemanticOpcode::Load, *Reg, 0, 0, stackOffsetFor(Slot)});
+            ValueRegs_[V] = *Reg;
+            return Reg;
+        }
+
+        auto *BinOp = dyn_cast<BinaryOperator>(V);
+        if (BinOp != nullptr) {
+            vmp::core::SemanticOpcode Op;
+            switch (BinOp->getOpcode()) {
+            case Instruction::Add:
+                Op = vmp::core::SemanticOpcode::Add;
+                break;
+            case Instruction::Sub:
+                Op = vmp::core::SemanticOpcode::Sub;
+                break;
+            case Instruction::Mul:
+                Op = vmp::core::SemanticOpcode::Mul;
+                break;
+            case Instruction::And:
+                Op = vmp::core::SemanticOpcode::And;
+                break;
+            case Instruction::Or:
+                Op = vmp::core::SemanticOpcode::Or;
+                break;
+            case Instruction::Xor:
+                Op = vmp::core::SemanticOpcode::Xor;
+                break;
+            case Instruction::Shl:
+                if (!isSupportedI32Shift(*BinOp)) {
+                    return std::nullopt;
+                }
+                Op = vmp::core::SemanticOpcode::Shl;
+                break;
+            case Instruction::LShr:
+                if (!isSupportedI32Shift(*BinOp)) {
+                    return std::nullopt;
+                }
+                Op = vmp::core::SemanticOpcode::LShr;
+                break;
+            case Instruction::AShr:
+                if (!isSupportedI32Shift(*BinOp)) {
+                    return std::nullopt;
+                }
+                Op = vmp::core::SemanticOpcode::AShr;
+                break;
+            default:
+                return std::nullopt;
+            }
+
+            auto Lhs = lowerValue(BinOp->getOperand(0));
+            auto Rhs = lowerValue(BinOp->getOperand(1));
+            auto Reg = allocateReg();
+            if (!Lhs || !Rhs || !Reg) {
+                return std::nullopt;
+            }
+            Program_.push_back({Op, *Reg, *Lhs, *Rhs, 0});
+            ValueRegs_[V] = *Reg;
+            return Reg;
+        }
+
+        auto *Call = dyn_cast<CallInst>(V);
+        if (Call != nullptr) {
+            if (!AllowHostCalls_ || !isSupportedHostBridgeCall(*Call)) {
+                return std::nullopt;
+            }
+            auto First = lowerValue(Call->getArgOperand(0));
+            auto Second = lowerValue(Call->getArgOperand(1));
+            auto Reg = allocateReg();
+            if (!First || !Second || !Reg) {
+                return std::nullopt;
+            }
+            Program_.push_back({vmp::core::SemanticOpcode::CallHost, 1, *First, *Second, 0});
+            Program_.push_back({vmp::core::SemanticOpcode::Mov, *Reg, 0, 0, 0});
+            ValueRegs_[V] = *Reg;
+            return Reg;
+        }
+
+        auto *Cast = dyn_cast<CastInst>(V);
+        if (Cast != nullptr) {
+            if (isSupportedBoolToI32Cast(*Cast)) {
+                auto *Cmp = cast<ICmpInst>(Cast->getOperand(0));
+                auto Lhs = lowerValue(Cmp->getOperand(0));
+                auto Rhs = lowerValue(Cmp->getOperand(1));
+                auto TrueReg = emitLoadImm(Cast->getOpcode() == Instruction::SExt ? 0xffffffffULL : 1ULL);
+                auto FalseReg = emitLoadImm(0);
+                auto Reg = allocateReg();
+                if (!Lhs || !Rhs || !TrueReg || !FalseReg || !Reg) {
+                    return std::nullopt;
+                }
+                appendCompare(Cmp->getPredicate(), *Lhs, *Rhs);
+                Program_.push_back({vmp::core::SemanticOpcode::Select, *Reg, *TrueReg, *FalseReg, 0});
+                ValueRegs_[V] = *Reg;
+                return Reg;
+            }
+
+            if (!isSupportedNarrowTruncToI32Cast(*Cast)) {
+                if (!isSupportedNarrowTruncViaWideToI32Cast(*Cast)) {
+                    return std::nullopt;
+                }
+                auto *Wide = cast<CastInst>(Cast->getOperand(0));
+                auto *Trunc = cast<CastInst>(Wide->getOperand(0));
+                auto Reg = lowerNarrowTruncExtensionToI32(Wide->getOpcode(), *Trunc);
+                if (!Reg) {
+                    return std::nullopt;
+                }
+                ValueRegs_[V] = *Reg;
+                return Reg;
+            }
+
+            auto *Trunc = cast<CastInst>(Cast->getOperand(0));
+            auto Reg = lowerNarrowTruncExtensionToI32(Cast->getOpcode(), *Trunc);
+            if (!Reg) {
+                return std::nullopt;
+            }
+            ValueRegs_[V] = *Reg;
+            return Reg;
+        }
+
+        auto *Select = dyn_cast<SelectInst>(V);
+        if (Select == nullptr || !isSupportedSelect(*Select)) {
+            return std::nullopt;
+        }
+        auto *Cmp = cast<ICmpInst>(Select->getCondition());
+        auto TrueReg = lowerValue(Select->getTrueValue());
+        auto FalseReg = lowerValue(Select->getFalseValue());
+        auto Lhs = lowerValue(Cmp->getOperand(0));
+        auto Rhs = lowerValue(Cmp->getOperand(1));
+        auto Reg = allocateReg();
+        if (!TrueReg || !FalseReg || !Lhs || !Rhs || !Reg) {
+            return std::nullopt;
+        }
+        appendCompare(Cmp->getPredicate(), *Lhs, *Rhs);
+        Program_.push_back({vmp::core::SemanticOpcode::Select, *Reg, *TrueReg, *FalseReg, 0});
+        ValueRegs_[V] = *Reg;
+        return Reg;
+    }
+
+    bool appendControlPath(const BasicBlock *Start) {
+        SmallPtrSet<const BasicBlock *, 8> Seen;
+        SmallVector<const BasicBlock *, 8> Path;
+        const BasicBlock *Current = Start;
+        const BasicBlock *Previous = nullptr;
+        while (Current != nullptr && Seen.insert(Current).second) {
+            Path.push_back(Current);
+            auto *Ret = dyn_cast<ReturnInst>(Current->getTerminator());
+            if (Ret != nullptr) {
+                if (Ret->getNumOperands() != 1) {
+                    return false;
+                }
+                const Value *ReturnValue = Ret->getReturnValue();
+                if (auto *Phi = dyn_cast<PHINode>(ReturnValue)) {
+                    if (Previous == nullptr) {
+                        return false;
+                    }
+                    ReturnValue = Phi->getIncomingValueForBlock(Previous);
+                    if (ReturnValue == nullptr) {
+                        return false;
+                    }
+                }
+
+                const auto SavedPath = ActiveReturnPath_;
+                ActiveReturnPath_ = Path;
+                auto ReturnReg = lowerValue(ReturnValue);
+                ActiveReturnPath_ = SavedPath;
+                if (!ReturnReg) {
+                    return false;
+                }
+                Program_.push_back({vmp::core::SemanticOpcode::Ret, 0, *ReturnReg, 0, 0});
+                return true;
+            }
+
+            auto *Branch = dyn_cast<BranchInst>(Current->getTerminator());
+            if (Branch == nullptr) {
+                return false;
+            }
+            if (Branch->isUnconditional()) {
+                Previous = Current;
+                Current = Branch->getSuccessor(0);
+                continue;
+            }
+            if (isOpaqueFalseDispatchBranch(*Branch)) {
+                Previous = Current;
+                Current = Branch->getSuccessor(1);
+                continue;
+            }
+            if (hasReservedOpaqueDispatchNames(*Branch)) {
+                return false;
+            }
+
+            auto *Cmp = dyn_cast<ICmpInst>(Branch->getCondition());
+            if (Cmp == nullptr || !isSupportedPredicate(Cmp->getPredicate())) {
+                return false;
+            }
+
+            const auto SavedPath = ActiveReturnPath_;
+            ActiveReturnPath_ = Path;
+            auto Lhs = lowerValue(Cmp->getOperand(0));
+            auto Rhs = lowerValue(Cmp->getOperand(1));
+            ActiveReturnPath_ = SavedPath;
+            if (!Lhs || !Rhs) {
+                return false;
+            }
+
+            appendCompare(Cmp->getPredicate(), *Lhs, *Rhs);
+            const auto Prefix = Program_;
+            const auto BranchBaseState = captureState();
+
+            auto FalsePath = lowerIsolatedControlPath(Branch->getSuccessor(1), BranchBaseState);
+            auto TruePath = lowerIsolatedControlPath(Branch->getSuccessor(0), BranchBaseState);
+            if (!FalsePath || !TruePath) {
+                return false;
+            }
+
+            Program_ = Prefix;
+            const std::size_t JumpIndex = Program_.size();
+            Program_.push_back({vmp::core::SemanticOpcode::JumpIfZero, 0, 0, 0, 0});
+
+            const std::uint64_t FalseBase = Program_.size();
+            appendRebasedInstructions(FalsePath->instructions, FalseBase);
+
+            const std::uint64_t TrueTarget = Program_.size();
+            Program_[JumpIndex].imm = TrueTarget;
+
+            appendRebasedInstructions(TruePath->instructions, TrueTarget);
+            return true;
+        }
+        return false;
+    }
+
+    std::optional<std::uint8_t> lowerReturnPath(const BasicBlock *Start) {
+        SmallPtrSet<const BasicBlock *, 8> Seen;
+        SmallVector<const BasicBlock *, 8> Path;
+        const BasicBlock *Current = Start;
+        const BasicBlock *Previous = nullptr;
+        while (Current != nullptr && Seen.insert(Current).second) {
+            Path.push_back(Current);
+            auto *Ret = dyn_cast<ReturnInst>(Current->getTerminator());
+            if (Ret != nullptr) {
+                if (Ret->getNumOperands() != 1) {
+                    return std::nullopt;
+                }
+                const Value *ReturnValue = Ret->getReturnValue();
+                if (auto *Phi = dyn_cast<PHINode>(ReturnValue)) {
+                    if (Previous == nullptr) {
+                        return std::nullopt;
+                    }
+                    ReturnValue = Phi->getIncomingValueForBlock(Previous);
+                    if (ReturnValue == nullptr) {
+                        return std::nullopt;
+                    }
+                }
+                const auto SavedPath = ActiveReturnPath_;
+                ActiveReturnPath_ = Path;
+                auto ReturnReg = lowerValue(ReturnValue);
+                ActiveReturnPath_ = SavedPath;
+                return ReturnReg;
+            }
+
+            auto *Branch = dyn_cast<BranchInst>(Current->getTerminator());
+            if (Branch == nullptr || !Branch->isUnconditional()) {
+                return std::nullopt;
+            }
+            Previous = Current;
+            Current = Branch->getSuccessor(0);
+        }
+        return std::nullopt;
+    }
+
+    std::optional<std::vector<vmp::core::Instruction>> lowerLinearReturn() {
+        Program_.clear();
+        ValueRegs_.clear();
+        StackSlots_.clear();
+        EmittedStores_.clear();
+        std::uint8_t Reg = 1;
+        for (const Argument &Arg : Function_.args()) {
+            ValueRegs_[&Arg] = Reg++;
+        }
+        NextReg_ = Reg;
+        AllowHostCalls_ = true;
+
+        auto ReturnReg = lowerReturnPath(&Function_.getEntryBlock());
+        if (!ReturnReg) {
+            return std::nullopt;
+        }
+        Program_.push_back({vmp::core::SemanticOpcode::Ret, 0, *ReturnReg, 0, 0});
+        return Program_;
+    }
+
+    const Function &Function_;
+    std::vector<vmp::core::Instruction> Program_;
+    DenseMap<const Value *, std::uint8_t> ValueRegs_;
+    DenseMap<const AllocaInst *, std::uint64_t> StackSlots_;
+    SmallPtrSet<const StoreInst *, 16> EmittedStores_;
+    SmallVector<const BasicBlock *, 8> ActiveReturnPath_;
+    std::uint8_t NextReg_ = 1;
+    bool AllowHostCalls_ = true;
+};
+
+std::optional<std::vector<std::uint8_t>> lowerRuntimeArtifact(const Function &F,
+                                                              const vmp::core::ProtectionConfig &Config) {
+    if (!supportsReplacementStub(F)) {
+        return std::nullopt;
+    }
+    if (!fitsLoweringSubset(F)) {
+        return std::nullopt;
+    }
+    if (hasLocalMemoryInstructions(F) && !localMemoryShapeIsSafe(F)) {
+        return std::nullopt;
+    }
+
+    const std::uint64_t FunctionHash = vmp::core::stableHash64(F.getName().str());
+    const auto SeedMaterial = seedMaterialForConfig(Config);
+    const auto VmLevel = vmLevelForFunction(Config, F);
+    const auto Map = vmp::core::buildOpcodeMap(SeedMaterial, FunctionHash, kRuntimePlatformSalt, VmLevel);
+
+    auto Program = I32DiamondLowering(F).lower();
+    if (!Program) {
+        return std::nullopt;
+    }
+
+    const auto Chunk = vmp::core::encryptChunk(*Program, Map, SeedMaterial, FunctionHash, kRuntimePlatformSalt, VmLevel);
+    return serializeRuntimeArtifact(Map, Chunk, seedHashForConfig(Config));
+}
+
+bool bytecodeGlobalMatchesArtifact(const GlobalVariable &Global, const std::vector<std::uint8_t> &Artifact) {
+    if (!Global.isConstant() || !Global.hasPrivateLinkage() || Global.getAddressSpace() != 0 ||
+        Global.isThreadLocal() || Global.isExternallyInitialized() ||
+        Global.getUnnamedAddr() != GlobalValue::UnnamedAddr::Global ||
+        Global.getMetadata("vmp.generated.bytecode") == nullptr) {
+        return false;
+    }
+
+    auto *ArrayTy = dyn_cast<ArrayType>(Global.getValueType());
+    if (ArrayTy == nullptr || !ArrayTy->getElementType()->isIntegerTy(8) ||
+        ArrayTy->getNumElements() != Artifact.size() || !Global.hasInitializer()) {
+        return false;
+    }
+
+    auto *Data = dyn_cast<ConstantDataArray>(Global.getInitializer());
+    if (Data != nullptr) {
+        if (!Data->getElementType()->isIntegerTy(8) || Data->getNumElements() != Artifact.size()) {
+            return false;
+        }
+        for (std::size_t Index = 0; Index < Artifact.size(); ++Index) {
+            if (Data->getElementAsInteger(Index) != Artifact[Index]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    auto *Array = dyn_cast<ConstantArray>(Global.getInitializer());
+    if (Array == nullptr || Array->getNumOperands() != Artifact.size()) {
+        return false;
+    }
+    for (std::size_t Index = 0; Index < Artifact.size(); ++Index) {
+        auto *Byte = dyn_cast<ConstantInt>(Array->getOperand(Index));
+        if (Byte == nullptr || Byte->getZExtValue() != Artifact[Index]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+GlobalVariable *getOrCreateBytecodeGlobal(Module &M, Function &F, const vmp::core::ProtectionConfig &Config) {
+    const std::string GlobalName = ("vmp.bytecode." + F.getName()).str();
+    const auto Artifact = lowerRuntimeArtifact(F, Config);
+    if (!Artifact.has_value()) {
+        return nullptr;
+    }
+
+    if (auto *Existing = M.getNamedGlobal(GlobalName)) {
+        return bytecodeGlobalMatchesArtifact(*Existing, *Artifact) ? Existing : nullptr;
+    }
+
+    LLVMContext &Ctx = M.getContext();
+    SmallVector<Constant *, 128> Bytes;
+    for (std::uint8_t Byte : *Artifact) {
+        Bytes.push_back(ConstantInt::get(Type::getInt8Ty(Ctx), Byte));
+    }
+
+    auto *ArrayTy = ArrayType::get(Type::getInt8Ty(Ctx), Bytes.size());
+    auto *Init = ConstantArray::get(ArrayTy, Bytes);
+    auto *GV = new GlobalVariable(M, ArrayTy, true, GlobalValue::PrivateLinkage, Init, GlobalName);
+    GV->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
+    GV->setAlignment(Align(1));
+    GV->setMetadata("vmp.generated.bytecode", MDNode::get(Ctx, MDString::get(Ctx, kGeneratedBytecodeMarker)));
+    return GV;
+}
+
+const char *runtimeEntryNameFor(const Function &Target) {
+    switch (Target.arg_size()) {
+    case 0:
+        return "vmp_runtime_entry_i32";
+    case 1:
+        return "vmp_runtime_entry_i32_i32";
+    case 2:
+        return "vmp_runtime_entry_i32_i32_i32";
+    case 3:
+        return "vmp_runtime_entry_i32_i32_i32_i32";
+    case 4:
+        return "vmp_runtime_entry_i32_i32_i32_i32_i32";
+    default:
+        llvm_unreachable("unsupported runtime-entry argument count");
+    }
+}
+
+FunctionType *runtimeEntryTypeFor(LLVMContext &Ctx, const Function &Target) {
+    Type *I8PtrTy = Type::getInt8PtrTy(Ctx);
+    Type *I64Ty = Type::getInt64Ty(Ctx);
+    Type *I32Ty = Type::getInt32Ty(Ctx);
+    SmallVector<Type *, 5> Params;
+    Params.push_back(I8PtrTy);
+    Params.push_back(I64Ty);
+    Params.append(Target.arg_size(), I32Ty);
+    return FunctionType::get(I32Ty, Params, false);
+}
+
+bool isAcceptableRuntimeEntryDeclaration(const Function &RuntimeEntry, FunctionType *ExpectedType) {
+    return RuntimeEntry.isDeclaration() && RuntimeEntry.getFunctionType() == ExpectedType &&
+           RuntimeEntry.hasExternalLinkage() && RuntimeEntry.getVisibility() == GlobalValue::DefaultVisibility &&
+           RuntimeEntry.getDLLStorageClass() == GlobalValue::DefaultStorageClass &&
+           RuntimeEntry.getCallingConv() == CallingConv::C && RuntimeEntry.getAttributes().isEmpty() &&
+           RuntimeEntry.getSection().empty() && RuntimeEntry.getComdat() == nullptr && !RuntimeEntry.hasGC() &&
+           !RuntimeEntry.hasPersonalityFn() && RuntimeEntry.getUnnamedAddr() == GlobalValue::UnnamedAddr::None;
+}
+
+bool runtimeEntrySymbolIsAvailable(Module &M, const Function &Target) {
+    FunctionType *FnTy = runtimeEntryTypeFor(M.getContext(), Target);
+    GlobalValue *Existing = M.getNamedValue(runtimeEntryNameFor(Target));
+    if (Existing == nullptr) {
+        return true;
+    }
+    auto *ExistingFunction = dyn_cast<Function>(Existing);
+    return ExistingFunction != nullptr && isAcceptableRuntimeEntryDeclaration(*ExistingFunction, FnTy);
+}
+
+Function *getOrCreateRuntimeEntry(Module &M, const Function &Target) {
+    FunctionType *FnTy = runtimeEntryTypeFor(M.getContext(), Target);
+    const char *Name = runtimeEntryNameFor(Target);
+    if (GlobalValue *Existing = M.getNamedValue(Name)) {
+        auto *ExistingFunction = dyn_cast<Function>(Existing);
+        if (ExistingFunction == nullptr || !isAcceptableRuntimeEntryDeclaration(*ExistingFunction, FnTy)) {
+            return nullptr;
+        }
+        return ExistingFunction;
+    }
+    return Function::Create(FnTy, GlobalValue::ExternalLinkage, Name, M);
+}
+
+void markUnsupportedLowering(Function &F, StringRef Reason) {
+    F.setMetadata("vmp.bytecode", nullptr);
+    F.setMetadata("vmp.lowering", nullptr);
+    F.setMetadata("vmp.replaced", nullptr);
+    F.setMetadata("vmp.unsupported", MDNode::get(F.getContext(), MDString::get(F.getContext(), Reason)));
+    errs() << "VMPPassPlugin unsupported lowering: function=" << F.getName() << " reason=" << Reason << "\n";
+}
+
+void clearVmpProtectionMetadata(Function &F) {
+    F.setMetadata("vmp.protect", nullptr);
+    F.setMetadata("vmp.bytecode", nullptr);
+    F.setMetadata("vmp.lowering", nullptr);
+    F.setMetadata("vmp.replaced", nullptr);
+    F.setMetadata("vmp.unsupported", nullptr);
+}
+
+bool materializeBytecodeGlobals(Module &M) {
+    bool Changed = false;
+    LLVMContext &Ctx = M.getContext();
+    const auto &Config = activeConfig();
+    for (Function &F : M) {
+        if (!isSelectedFunction(F) || F.isDeclaration()) {
+            continue;
+        }
+        if (!supportsReplacementStub(F)) {
+            markUnsupportedLowering(F, "unsupported-signature");
+            Changed = true;
+            continue;
+        }
+        if (!runtimeEntrySymbolIsAvailable(M, F)) {
+            markUnsupportedLowering(F, "runtime-entry-collision");
+            Changed = true;
+            continue;
+        }
+        GlobalVariable *Bytecode = getOrCreateBytecodeGlobal(M, F, Config);
+        if (Bytecode == nullptr) {
+            markUnsupportedLowering(F, "unsupported-ir-subset");
+            Changed = true;
+            continue;
+        }
+        Metadata *Ops[] = {ValueAsMetadata::get(Bytecode)};
+        F.setMetadata("vmp.bytecode", MDNode::get(Ctx, Ops));
+        F.setMetadata("vmp.lowering", MDNode::get(Ctx, MDString::get(Ctx, kLoweringName)));
+        F.setMetadata("vmp.unsupported", nullptr);
+        Changed = true;
+    }
+    return Changed;
+}
+
+void normalizeOutlinedClone(Function &Clone) {
+    Clone.setLinkage(GlobalValue::InternalLinkage);
+    Clone.setVisibility(GlobalValue::DefaultVisibility);
+    Clone.setDLLStorageClass(GlobalValue::DefaultStorageClass);
+    Clone.setDSOLocal(true);
+    Clone.setComdat(nullptr);
+    Clone.setSection("");
+    Clone.setUnnamedAddr(GlobalValue::UnnamedAddr::None);
+}
+
+void outlineOriginalBody(Function &F) {
+    Module &M = *F.getParent();
+    const std::string CloneName = (F.getName() + ".vmp.outline").str();
+    if (M.getFunction(CloneName) != nullptr) {
+        return;
+    }
+
+    auto *Clone = Function::Create(F.getFunctionType(), GlobalValue::InternalLinkage, CloneName, M);
+    Clone->copyAttributesFrom(&F);
+    normalizeOutlinedClone(*Clone);
+
+    ValueToValueMapTy VMap;
+    auto DestArg = Clone->arg_begin();
+    for (const Argument &Arg : F.args()) {
+        DestArg->setName(Arg.getName());
+        VMap[&Arg] = &*DestArg++;
+    }
+
+    SmallVector<ReturnInst *, 4> Returns;
+    CloneFunctionInto(Clone, &F, VMap, CloneFunctionChangeType::LocalChangesOnly, Returns);
+    normalizeOutlinedClone(*Clone);
+    clearVmpProtectionMetadata(*Clone);
+    Clone->setMetadata("vmp.outlined.original", MDNode::get(M.getContext(), MDString::get(M.getContext(), F.getName())));
+}
+
+bool outlineCloneSlotIsAvailable(const Function &F) {
+    const Function *Clone = F.getParent()->getFunction((F.getName() + ".vmp.outline").str());
+    if (Clone == nullptr) {
+        return true;
+    }
+    return false;
+}
+
+void sanitizeOutlineCloneCollision(Function &F) {
+    if (Function *Clone = F.getParent()->getFunction((F.getName() + ".vmp.outline").str())) {
+        clearVmpProtectionMetadata(*Clone);
+    }
+}
+
+bool replaceWithRuntimeStub(Module &M) {
+    bool Changed = false;
+    LLVMContext &Ctx = M.getContext();
+    const auto &Config = activeConfig();
+    SmallVector<Function *, 8> Targets;
+    for (Function &F : M) {
+        if (isSelectedFunction(F) && !F.isDeclaration()) {
+            Targets.push_back(&F);
+        }
+    }
+
+    for (Function *F : Targets) {
+        MDNode *Protected = F->getMetadata("vmp.protect");
+        MDNode *BytecodeMetadata = F->getMetadata("vmp.bytecode");
+        if (!supportsReplacementStub(*F)) {
+            if (BytecodeMetadata != nullptr || F->getMetadata("vmp.lowering") != nullptr ||
+                F->getMetadata("vmp.replaced") != nullptr) {
+                markUnsupportedLowering(*F, "unsupported-signature");
+                Changed = true;
+            }
+            continue;
+        }
+        if (BytecodeMetadata == nullptr) {
+            continue;
+        }
+        if (!outlineCloneSlotIsAvailable(*F)) {
+            sanitizeOutlineCloneCollision(*F);
+            markUnsupportedLowering(*F, "outline-collision");
+            Changed = true;
+            continue;
+        }
+        if (!runtimeEntrySymbolIsAvailable(M, *F)) {
+            markUnsupportedLowering(*F, "runtime-entry-collision");
+            Changed = true;
+            continue;
+        }
+        GlobalVariable *Bytecode = getOrCreateBytecodeGlobal(M, *F, Config);
+        if (Bytecode == nullptr) {
+            markUnsupportedLowering(*F, "unsupported-ir-subset");
+            Changed = true;
+            continue;
+        }
+        Function *RuntimeEntry = getOrCreateRuntimeEntry(M, *F);
+        if (RuntimeEntry == nullptr) {
+            markUnsupportedLowering(*F, "runtime-entry-collision");
+            Changed = true;
+            continue;
+        }
+        Metadata *BytecodeOps[] = {ValueAsMetadata::get(Bytecode)};
+        MDNode *FreshBytecodeMetadata = MDNode::get(Ctx, BytecodeOps);
+        outlineOriginalBody(*F);
+        F->deleteBody();
+        BasicBlock *Entry = BasicBlock::Create(Ctx, "vmp.entry", F);
+        IRBuilder<> B(Entry);
+        Value *BytecodePtr = B.CreatePointerCast(Bytecode, Type::getInt8PtrTy(Ctx), "vmp.bytecode.ptr");
+        SmallVector<Value *, 3> Args;
+        Args.push_back(BytecodePtr);
+        auto *BytecodeArrayTy = cast<ArrayType>(Bytecode->getValueType());
+        Args.push_back(ConstantInt::get(Type::getInt64Ty(Ctx), BytecodeArrayTy->getNumElements()));
+        for (Argument &Arg : F->args()) {
+            Args.push_back(&Arg);
+        }
+        Value *Result = B.CreateCall(RuntimeEntry, Args, "vmp.vm.result");
+        B.CreateRet(Result);
+        F->setMetadata("vmp.protect", Protected);
+        F->setMetadata("vmp.bytecode", FreshBytecodeMetadata);
+        F->setMetadata("vmp.lowering", MDNode::get(Ctx, MDString::get(Ctx, kLoweringName)));
+        F->setMetadata("vmp.replaced", MDNode::get(Ctx, MDString::get(Ctx, "runtime-entry-stub")));
+        F->setMetadata("vmp.unsupported", nullptr);
+        Changed = true;
+    }
+    return Changed;
+}
+
+PreservedAnalyses runStage(Module &M, StringRef StageName) {
+    recordStage(M, StageName);
+
+    if (StageName == "vmp-function-marker") {
+        LLVMContext &Ctx = M.getContext();
+        MDNode *Protected = MDNode::get(Ctx, MDString::get(Ctx, "selected"));
+        for (Function &F : M) {
+            if (shouldMarkFunction(F)) {
+                F.setMetadata("vmp.protect", Protected);
+            }
+        }
+        return PreservedAnalyses::none();
+    }
+
+    if (StageName == "vmp-block-split") {
+        return splitProtectedBlocks(M) ? PreservedAnalyses::none() : PreservedAnalyses::all();
+    }
+
+    if (StageName == "vmp-bogus-branch") {
+        return insertBogusDispatch(M) ? PreservedAnalyses::none() : PreservedAnalyses::all();
+    }
+
+    if (StageName == "vmp-instruction-substitution") {
+        return substituteIntegerComparisons(M) ? PreservedAnalyses::none() : PreservedAnalyses::all();
+    }
+
+    if (StageName == "vmp-ir-to-bytecode") {
+        return materializeBytecodeGlobals(M) ? PreservedAnalyses::none() : PreservedAnalyses::all();
+    }
+
+    if (StageName == "vmp-function-replacement") {
+        return replaceWithRuntimeStub(M) ? PreservedAnalyses::none() : PreservedAnalyses::all();
+    }
+
+    if (StageName == "vmp-report") {
+        unsigned Selected = 0;
+        unsigned Lowered = 0;
+        unsigned Replaced = 0;
+        unsigned Unsupported = 0;
+        for (const Function &F : M) {
+            if (!F.isDeclaration() && F.getMetadata("vmp.protect") != nullptr) {
+                ++Selected;
+                if (F.getMetadata("vmp.bytecode") != nullptr) {
+                    ++Lowered;
+                }
+                if (F.getMetadata("vmp.replaced") != nullptr) {
+                    ++Replaced;
+                }
+                if (F.getMetadata("vmp.unsupported") != nullptr) {
+                    ++Unsupported;
+                }
+            }
+        }
+        unsigned RecordedStages = 0;
+        if (NamedMDNode *Stages = M.getNamedMetadata("vmp.pipeline.stages")) {
+            RecordedStages = Stages->getNumOperands();
+        }
+        errs() << "VMPPassPlugin report: selected_functions=" << Selected
+               << " lowered_functions=" << Lowered
+               << " replaced_functions=" << Replaced
+               << " unsupported_functions=" << Unsupported
+               << " stages=" << RecordedStages << "\n";
+        const auto &Config = activeConfig();
+        errs() << "VMPPassPlugin config: seed_fingerprint=" << seedHashForConfig(Config) << " vm_levels=";
+        bool First = true;
+        for (const Function &F : M) {
+            if (!F.isDeclaration() && F.getMetadata("vmp.protect") != nullptr) {
+                if (!First) {
+                    errs() << ",";
+                }
+                First = false;
+                errs() << F.getName() << ":" << vmLevelForFunction(Config, F);
+            }
+        }
+        if (First) {
+            errs() << "none";
+        }
+        errs() << "\n";
+        unsigned ImplementedStages = 0;
+        unsigned PlaceholderStages = 0;
+        unsigned ReportOnlyStages = 0;
+        errs() << "VMPPassPlugin stage_manifest_json: {\"schema\":\"vmp.llvm.stage_manifest.v1\","
+               << "\"producer\":{\"name\":\"VMPPassPlugin\",\"version\":\"" << kPluginVersion << "\"},"
+               << "\"pipeline\":{\"executed_count\":" << RecordedStages << ",\"implemented_count\":";
+        for (StringRef Stage : kPipelineStages) {
+            if (stageKind(Stage) == "report_only") {
+                ++ReportOnlyStages;
+            } else if (stageIsImplemented(Stage)) {
+                ++ImplementedStages;
+            } else {
+                ++PlaceholderStages;
+            }
+        }
+        errs() << ImplementedStages << ",\"placeholder_noop_count\":" << PlaceholderStages
+               << ",\"report_only_count\":" << ReportOnlyStages << "},"
+               << "\"totals\":{\"selected_functions\":" << Selected << ",\"lowered_functions\":" << Lowered
+               << ",\"replaced_functions\":" << Replaced << ",\"unsupported_functions\":" << Unsupported << "},"
+               << "\"stages\":[";
+        for (std::size_t Index = 0; Index < kPipelineStages.size(); ++Index) {
+            StringRef Stage = kPipelineStages[Index];
+            StringRef Kind = stageKind(Stage);
+            if (Index != 0) {
+                errs() << ",";
+            }
+            errs() << "{\"order\":" << (Index + 1) << ",\"name\":\"" << Stage << "\",\"kind\":\"" << Kind
+                   << "\",\"implemented\":" << (stageIsImplemented(Stage) ? "true" : "false")
+                   << ",\"capability_effects\":[";
+            if (Stage == "vmp-ir-to-bytecode") {
+                errs() << "\"code_virtualization.bytecode_lowering\"";
+            } else if (Stage == "vmp-function-replacement") {
+                errs() << "\"code_virtualization.runtime_replacement\"";
+            } else if (Stage == "vmp-bogus-branch" || Stage == "vmp-instruction-substitution") {
+                errs() << "\"mutation_obfuscation.local_transform\"";
+            }
+            errs() << "]}";
+        }
+        errs() << "]}\n";
+    }
+
+    return PreservedAnalyses::all();
+}
+
+class VMPStagePass final : public PassInfoMixin<VMPStagePass> {
+public:
+    explicit VMPStagePass(StringRef StageName) : StageName_(StageName.str()) {}
+
+    PreservedAnalyses run(Module &M, ModuleAnalysisManager &) {
+        return runStage(M, StageName_);
+    }
+
+private:
+    std::string StageName_;
+};
+
+} // namespace
+
+extern "C" LLVM_ATTRIBUTE_WEAK PassPluginLibraryInfo llvmGetPassPluginInfo() {
+    return {
+        LLVM_PLUGIN_API_VERSION,
+        "VMPPassPlugin",
+        kPluginVersion.data(),
+        [](PassBuilder &PB) {
+            PB.registerPipelineParsingCallback(
+                [](StringRef Name, ModulePassManager &MPM, ArrayRef<PassBuilder::PipelineElement>) {
+                    if (!isKnownStage(Name)) {
+                        return false;
+                    }
+                    MPM.addPass(VMPStagePass(Name));
+                    return true;
+                });
+        },
+    };
+}

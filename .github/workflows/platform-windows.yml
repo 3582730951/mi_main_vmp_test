@@ -1,0 +1,73 @@
+name: platform-windows
+
+on:
+  pull_request:
+    paths:
+      - "src/platform/**"
+      - "tests/platform/**"
+      - "docs/platform/**"
+      - "docs/qa/reports/windows-*.json"
+      - "scripts/audit/plan_completion_audit.py"
+      - "tests/qa/test_plan_completion_audit.py"
+      - ".github/workflows/platform-windows.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  build-protect-run:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure and run Windows acceptance
+        shell: pwsh
+        run: tests/platform/windows_acceptance.ps1
+
+      - name: Build and run protected release sample
+        shell: pwsh
+        run: tests/platform/windows_protected_release.ps1
+
+      - name: Validate Windows GitHub Actions evidence
+        if: github.event_name != 'pull_request'
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python scripts/audit/verify_github_actions_evidence.py --root . `
+            --expected-workflow platform-windows `
+            --expected-workflow-path .github/workflows/platform-windows.yml `
+            --artifact-name windows-protected-release-evidence `
+            docs/qa/reports/windows-acceptance.json `
+            docs/qa/reports/windows-protected-release.json
+
+      - name: Collect Windows hostile trigger report
+        shell: pwsh
+        run: tests/platform/windows_hostile_trigger_report.ps1
+
+      - name: Validate Windows hostile trigger provenance
+        if: github.event_name != 'pull_request'
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python scripts/audit/verify_github_actions_evidence.py --root . `
+            --output docs/qa/reports/windows-hostile-github-actions-verification.json `
+            --expected-workflow platform-windows `
+            --expected-workflow-path .github/workflows/platform-windows.yml `
+            --artifact-name windows-protected-release-evidence `
+            docs/qa/reports/windows-hostile-triggers.json
+
+      - name: Upload Windows evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-protected-release-evidence
+          path: |
+            docs/qa/reports/windows-*.json
+            build/windows/**
+            build/windows-protected/**
+          if-no-files-found: warn

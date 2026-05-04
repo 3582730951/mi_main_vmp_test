@@ -1,0 +1,288 @@
+# 任务级计划：对标 VMProtect 梯队的跨平台 LLVM IR 多层 VMP
+
+## Summary
+
+建设一个以 LLVM IR 为核心的多层 VMP：OLLVM IR 混淆、多虚拟机嵌套、随机 opcode、花指令、反静态/动态分析、平台适配和 CI 验收。`main_agent` 统一监督，平台 agent 并行开发。验收目标是商用强保护，对标 VMProtect 的 virtualization、mutation、combined protection 能力，同时以“防御优先，其次性能，再其次资源占用”为全局优先级。
+
+本计划只适用于保护自有或授权软件。所有反调试、反注入、反分析能力只作为软件防护和完整性验证使用，不实现持久化隐藏、内核 rootkit、恶意规避安全产品或未授权绕过。
+github仓库地址和pat在passwd.txt里面
+## Hard Acceptance
+
+| 项目 | 验收标准 |
+|---|---|
+| Android | 加密/保护后的 APK 或 `.so` 必须能在 Android 模拟器内正常运行，通过 smoke test、JNI 调用测试和核心逻辑一致性测试。 |
+| iOS | 当前阶段只做逻辑可运行验证，要求 Mach-O/iOS runtime 设计、签名流程和 no-JIT 约束在逻辑上可成立；真机执行不作为当前阶段硬门槛。 |
+| Windows | 非 Linux 平台编译和保护后运行测试必须走 GitHub Actions CI；Windows protected `.exe/.dll` 必须在 CI 中执行成功。 |
+| CI | Windows/macOS 使用 GitHub-hosted 或 self-hosted runners；敏感信息只能使用 GitHub Encrypted Secrets，不允许明文使用 `passwd.txt` 内容。 |
+| 对标 | 保护能力必须进入 VMProtect 同梯队，最低包含代码虚拟化、变异混淆、组合保护、字符串隐藏、导入隐藏、反调试、反注入、反篡改。 |
+| 字符串 | release protected binary 中不得存在业务关键字符串、API 名称、JNI 名称、授权字段、URL、密钥材料的明文。 |
+| IDA/OllyDbg | 目标是让关键函数 F5、函数识别、xref、调用图、字符串引用严重失真；不承诺数学意义“完美”，验收以自动化指标和人工复核通过为准。 |
+| 优先级 | 防御强度最高，其次速度/性能，再其次硬件资源占用；若三者冲突，默认牺牲性能和体积保证防御。 |
+| 动态对抗 | 必须检测非程序自身设置的硬件断点、内存断点、调试器、DLL/SO 注入、Android Xposed/LSPosed 类框架、root 环境、可疑 ptrace/hook/frida 行为。 |
+| 合法边界 | 仅用于保护自有或授权软件；不实现绕过系统安全产品、持久化隐藏、内核 rootkit 或恶意规避能力。 |
+
+## Agent Topology
+
+| Agent | 责任 |
+|---|---|
+| `main_agent` | 总架构、接口冻结、任务下发、联网查证、CI 策略、代码评审、问题仲裁、验收签字。 |
+| `llvm_core_agent` | LLVM New PM pass、OLLVM pass、IR-to-bytecode、多 VM 嵌套、随机 opcode、bytecode 加密。 |
+| `anti_analysis_agent` | 反 IDA/F5/xref、花指令、反 OllyDbg/调试器、反硬件断点、反内存断点、反注入策略。 |
+| `windows_agent` | PE/COFF、`.exe/.dll`、Windows CI、TLS/init、import resolver、DLL 注入检测。 |
+| `linux_agent` | ELF、`.so`、PIE/RELRO、`dlopen/dlsym` resolver、Linux smoke test。 |
+| `android_agent` | NDK `.so`、APK 集成、模拟器验收、JNI、Xposed/LSPosed/root/frida 检测。 |
+| `ios_agent` | Mach-O、iOS no-JIT 逻辑、签名/重签名逻辑、ObjC/Swift metadata 暴露面控制。 |
+| `qa_agent` | 行为一致性、性能、资源、字符串扫描、IDA/OllyDbg/Ghidra 验收、CI 矩阵。 |
+
+## Global Execution Rules
+
+| 规则 | 内容 |
+|---|---|
+| R1 | `main_agent` 拥有接口、优先级、合并、回滚和任务重排决策权。 |
+| R2 | 子 agent 遇到 ABI、bytecode、配置字段、runtime 行为冲突时必须停下上报。 |
+| R3 | 每个任务交付必须包含代码/文档改动、测试命令、失败项、外部资料链接。 |
+| R4 | 平台 agent 只能改自己平台目录和测试，不允许改 core ABI。 |
+| R5 | 联网查阅以官方文档、平台源码、标准规范、release notes 和实测结果为准；博客和论坛只能作为线索。 |
+| R6 | `passwd.txt` 只能作为凭据迁移来源，不允许打印、提交、写入 workflow 或进入日志。 |
+| R7 | 所有敏感凭据必须迁移到 GitHub Secrets，CI 中只能通过 `${{ secrets.* }}` 引用。 |
+| R8 | 防御和性能冲突时，默认优先防御；只有 `main_agent` 可以调整 profile 默认值。 |
+
+## Batch 0：Main Agent 启动与安全基线
+
+| Task | Owner | 输出 | 验收 |
+|---|---|---|---|
+| T000 | main_agent | `plan/1.txt` | 本计划落盘，作为唯一执行基线。 |
+| T001 | main_agent | `ARCHITECTURE.md` | 明确 IR core、VM runtime、platform adapter、anti-analysis 边界。 |
+| T002 | main_agent | `TASKS.md` | 每个任务有 owner、依赖、输出、验收、禁止修改范围。 |
+| T003 | main_agent | `SECURITY_POLICY.md` | 明确仅保护授权软件，禁止恶意规避、持久化、rootkit。 |
+| T004 | main_agent | `CI_SECRETS.md` | 规定 `passwd.txt` 内容迁移到 GitHub Secrets，workflow 只引用 `${{ secrets.* }}`。 |
+| T005 | main_agent | 联网资料清单 | 记录 LLVM、PE/COFF、Android NDK、GitHub Actions、iOS/Mach-O 官方依据。 |
+
+## Batch 1：接口冻结
+
+| Task | Owner | 依赖 | 输出 | 验收 |
+|---|---|---|---|---|
+| T010 | llvm_core_agent | T001 | `PassPipelineSpec.md` | 固定 pass 顺序：normalize -> OLLVM -> VM lowering -> nesting -> anti-analysis hooks。 |
+| T011 | llvm_core_agent | T001 | `BytecodeSpec.md` | 固定寄存器模型、opcode 类别、chunk 格式、加密元数据。 |
+| T012 | llvm_core_agent | T001 | `VMRuntimeABI.md` | 固定 VM context、handler table、call bridge、return bridge、exception bridge。 |
+| T013 | main_agent | T010-T012 | `ProtectionConfig.md` | 固定 `protect.yml` 字段：函数、VM 层级、OLLVM 强度、anti-debug、seed、profile。 |
+| T014 | qa_agent | T013 | `Acceptance.md` | 固定 Android 模拟器、Windows CI、iOS 逻辑、字符串、IDA、性能验收指标。 |
+
+## Batch 2：LLVM/OLLVM 基础任务
+
+| Task | Owner | 依赖 | 输出 | 验收 |
+|---|---|---|---|---|
+| T020 | llvm_core_agent | T010 | LLVM pass plugin skeleton | 可通过 clang/opt 加载。 |
+| T021 | llvm_core_agent | T013 | config parser | 正确读取目标函数、profile、seed、VM 层级。 |
+| T022 | llvm_core_agent | T020 | function marker pass | 标记待保护函数并生成 report。 |
+| T023 | llvm_core_agent | T020 | IR normalize pass | 降低后续 lowering 分支数量。 |
+| T024 | llvm_core_agent | T023 | block split pass | 拆分后测试行为一致。 |
+| T025 | llvm_core_agent | T023 | flatten pass | 关键函数 CFG dispatcher 化。 |
+| T026 | llvm_core_agent | T023 | bogus branch pass | 插入虚假分支且不影响行为。 |
+| T027 | llvm_core_agent | T023 | instruction substitution pass | 算术/逻辑等价变换可 seed 随机。 |
+| T028 | llvm_core_agent | T023 | const/string encryption pass | IR/object 中关键字符串不明文出现。 |
+| T029 | qa_agent | T024-T028 | OLLVM tests | 每个 pass 独立和组合通过。 |
+
+## Batch 3：单层 VMP
+
+| Task | Owner | 依赖 | 输出 | 验收 |
+|---|---|---|---|---|
+| T030 | llvm_core_agent | T011 | IR-to-bytecode lowering v1 | 支持整数、比较、分支、返回。 |
+| T031 | llvm_core_agent | T030 | load/store lowering | 支持局部变量、指针读写、基础结构体访问。 |
+| T032 | llvm_core_agent | T030 | call bridge lowering | 支持调用未保护函数和外部函数。 |
+| T033 | llvm_core_agent | T012 | VM context runtime | VM 寄存器、栈、flags、返回值稳定。 |
+| T034 | llvm_core_agent | T033 | handler dispatcher | 能解释 bytecode。 |
+| T035 | llvm_core_agent | T030-T034 | function replacement stub | 原函数替换为 VM 入口。 |
+| T036 | qa_agent | T035 | behavior tests | 保护前后核心逻辑一致。 |
+| T037 | qa_agent | T035 | baseline performance report | 记录延迟、体积、内存，为后续优化基线。 |
+
+## Batch 4：随机 Opcode 与 Bytecode 加密
+
+| Task | Owner | 依赖 | 输出 | 验收 |
+|---|---|---|---|---|
+| T040 | llvm_core_agent | T011 | seed derivation | 同 seed 可复现，不同 seed 差异明显。 |
+| T041 | llvm_core_agent | T040 | randomized opcode map | opcode 语义映射每次构建变化。 |
+| T042 | llvm_core_agent | T041 | handler order randomization | handler 顺序和地址布局每次构建变化。 |
+| T043 | llvm_core_agent | T040 | bytecode chunk encryption | bytecode 不以连续明文数组存在。 |
+| T044 | llvm_core_agent | T043 | per-function key derivation | key 绑定 seed、函数 hash、平台 salt。 |
+| T045 | llvm_core_agent | T041 | polymorphic lowering | 同一 IR 操作可生成多种 bytecode 序列。 |
+| T046 | qa_agent | T040-T045 | randomness validation | 多 seed 输出差异达标且行为一致。 |
+
+## Batch 5：多虚拟机嵌套
+
+| Task | Owner | 依赖 | 输出 | 验收 |
+|---|---|---|---|---|
+| T050 | llvm_core_agent | T035 | VM1 business VM | 执行业务 bytecode。 |
+| T051 | llvm_core_agent | T050 | VM0 outer dispatcher | 负责 chunk 解密、VM profile 选择、VM1 调度。 |
+| T052 | llvm_core_agent | T051 | VM2 control-check VM | 负责控制流校验、完整性状态和 handler 校验。 |
+| T053 | llvm_core_agent | T052 | nested VM policy | `vm_level: 1/2/3` 可配置。 |
+| T054 | llvm_core_agent | T053 | cross-VM state bridge | VM0/VM1/VM2 状态传递稳定。 |
+| T055 | llvm_core_agent | T054 | nested exception/return handling | 外部 call、early return、异常不破坏 ABI。 |
+| T056 | qa_agent | T053-T055 | nested VM tests | 单层、双层、三层行为一致。 |
+
+## Batch 6：反 IDA、OllyDbg、xref 与字符串
+
+| Task | Owner | 依赖 | 输出 | 验收 |
+|---|---|---|---|---|
+| T060 | anti_analysis_agent | T025 | irreducible CFG templates | IDA 函数图和 F5 严重失真。 |
+| T061 | anti_analysis_agent | T035 | VM stub junk templates | VM 入口 stub 反编译不可读。 |
+| T062 | anti_analysis_agent | T034 | handler junk templates | handler F5 结果低可读。 |
+| T063 | anti_analysis_agent | T041 | fake opcode handlers | 虚假 handler 与真实 handler 混排。 |
+| T064 | anti_analysis_agent | T043 | fake xref layout | IDA 产生误导性交叉引用。 |
+| T065 | anti_analysis_agent | T028 | total string scanner policy | release 产物关键字符串扫描为 0。 |
+| T066 | anti_analysis_agent | T065 | API/JNI delayed decrypt | API/JNI 名称无静态明文引用。 |
+| T067 | qa_agent | T060-T066 | IDA/OllyDbg validation | 关键函数 F5/xref/字符串指标达标。 |
+
+## Batch 7：动态分析与注入检测
+
+| Task | Owner | 依赖 | 输出 | 验收 |
+|---|---|---|---|---|
+| T070 | anti_analysis_agent | T012 | anti-debug abstraction | 平台无关检测接口，不泄露具体策略到业务层。 |
+| T071 | windows_agent | T070 | Windows debugger detection | 检测常见用户态调试器、OllyDbg/x64dbg 类场景。 |
+| T072 | windows_agent | T070 | Windows hardware breakpoint detection | 检测非程序自身设置的硬件断点。 |
+| T073 | windows_agent | T070 | Windows memory breakpoint/page-guard detection | 检测可疑内存断点和保护页异常。 |
+| T074 | windows_agent | T070 | DLL injection detection | 检测异常模块、hook 痕迹和未授权 DLL 注入。 |
+| T075 | linux_agent | T070 | Linux ptrace/debug detection | 检测 ptrace、调试器附加、可疑 maps。 |
+| T076 | linux_agent | T070 | SO injection detection | 检测 `LD_PRELOAD`、异常 so、hook 痕迹。 |
+| T077 | android_agent | T070 | Android root detection | 检测 root 权限分析环境和可疑 su/magisk 痕迹。 |
+| T078 | android_agent | T070 | Xposed/LSPosed detection | 检测 XP 框架、zygote 注入、hook 框架痕迹。 |
+| T079 | android_agent | T070 | Frida/hook detection | 检测 frida server/gadget、可疑 maps、inline hook。 |
+| T080 | qa_agent | T071-T079 | dynamic-analysis validation | 检测触发、误报率和正常环境运行全部记录。 |
+
+## Batch 8：Windows Agent
+
+| Task | Owner | 依赖 | 输出 | 验收 |
+|---|---|---|---|---|
+| T090 | windows_agent | T012 | Windows runtime ABI adapter | x64 calling convention 正确。 |
+| T091 | windows_agent | T090 | PE/COFF build integration | 可输出 `.exe/.dll`。 |
+| T092 | windows_agent | T066 | import hash resolver | 关键 API 不以明文 import 暴露。 |
+| T093 | windows_agent | T091 | TLS/init integration | runtime 初始化顺序稳定。 |
+| T094 | windows_agent | T091 | section layout adapter | bytecode/runtime section 权限正确。 |
+| T095 | windows_agent | T091 | crash/PDB map handling | 崩溃能映射保护报告。 |
+| T096 | windows_agent | T091 | GitHub Actions Windows workflow | CI 编译、保护、运行 protected binary。 |
+| T097 | qa_agent | T090-T096 | Windows CI acceptance | Windows CI 中 protected `.exe/.dll` 成功运行并通过字符串/反分析基础检查。 |
+
+## Batch 9：Linux Agent
+
+| Task | Owner | 依赖 | 输出 | 验收 |
+|---|---|---|---|---|
+| T100 | linux_agent | T012 | Linux runtime ABI adapter | x64/arm64 calling convention 正确。 |
+| T101 | linux_agent | T100 | ELF build integration | 可输出 executable 和 `.so`。 |
+| T102 | linux_agent | T066 | `dlopen/dlsym` hash resolver | 关键动态符号不直接暴露。 |
+| T103 | linux_agent | T101 | `.init_array` integration | runtime 初始化顺序稳定。 |
+| T104 | linux_agent | T101 | PIE/RELRO compatibility | hardening 配置下可运行。 |
+| T105 | linux_agent | T101 | symbol strip policy | 不破坏必要导出符号。 |
+| T106 | qa_agent | T100-T105 | Linux acceptance | protected ELF/`.so` 行为一致且反分析指标达标。 |
+
+## Batch 10：Android Agent
+
+| Task | Owner | 依赖 | 输出 | 验收 |
+|---|---|---|---|---|
+| T110 | android_agent | T100 | Android NDK runtime adapter | arm64-v8a/x86_64 `.so` 可运行。 |
+| T111 | android_agent | T110 | JNI bridge policy | Java/Kotlin 到 protected native 调用稳定。 |
+| T112 | android_agent | T066 | JNI/API string protection | JNI 名称和关键字符串暴露面降低。 |
+| T113 | android_agent | T110 | APK packaging integration | protected `.so` 正确进入 ABI 目录。 |
+| T114 | android_agent | T111 | DEX peripheral obfuscation | DEX 只做外围混淆，核心秘密下沉 native。 |
+| T115 | android_agent | T110 | emulator workflow | Android 模拟器安装、启动、运行 protected app。 |
+| T116 | qa_agent | T110-T115 | Android emulator acceptance | 模拟器内 protected APK/`.so` 正常运行，核心逻辑一致。 |
+| T117 | qa_agent | T077-T079 | Android hostile-env acceptance | root/XP/frida/hook 场景检测有效，正常模拟器误报可控。 |
+
+## Batch 11：iOS Agent
+
+| Task | Owner | 依赖 | 输出 | 验收 |
+|---|---|---|---|---|
+| T120 | ios_agent | T012 | iOS arm64 runtime adapter design | Mach-O VM runtime 逻辑可运行。 |
+| T121 | ios_agent | T120 | Xcode/Clang integration design | 可接入 iOS build pipeline。 |
+| T122 | ios_agent | T066 | selector/metadata exposure policy | ObjC/Swift 暴露面降低。 |
+| T123 | ios_agent | T120 | no-JIT compliance proof | 不依赖运行时生成可执行代码。 |
+| T124 | ios_agent | T121 | signing/resigning workflow design | 保护后签名流程逻辑成立。 |
+| T125 | ios_agent | T121 | symbol/crash map design | 崩溃诊断逻辑可成立。 |
+| T126 | qa_agent | T120-T125 | iOS logical acceptance | 设计审查通过，无明显平台规则冲突。 |
+
+## Batch 12：CI、远端仓库与凭据
+
+| Task | Owner | 依赖 | 输出 | 验收 |
+|---|---|---|---|---|
+| T130 | main_agent | T004 | GitHub Secrets migration checklist | PAT、远端仓库凭据不再依赖明文 `passwd.txt`。 |
+| T131 | main_agent | T130 | remote repository setup plan | 远端推送使用 secret 或本地 credential helper。 |
+| T132 | qa_agent | T096 | Windows GitHub Actions workflow | Windows build/protect/run 全链路通过。 |
+| T133 | qa_agent | T115 | Android emulator CI plan | 若 GitHub-hosted runner 性能不足，切换 self-hosted runner。 |
+| T134 | qa_agent | T120 | macOS/iOS logic CI plan | macOS runner 做编译/静态/逻辑检查，不要求真机。 |
+| T135 | main_agent | T132-T134 | CI gate policy | PR 必须通过对应平台 gate 才能合并。 |
+
+## Batch 13：性能与资源优化
+
+| Task | Owner | 依赖 | 输出 | 验收 |
+|---|---|---|---|---|
+| T140 | qa_agent | T037 | performance benchmark suite | 记录启动时间、函数耗时、内存、体积。 |
+| T141 | llvm_core_agent | T140 | VM hot-path optimization | 在不降低防御的前提下降低 dispatch 成本。 |
+| T142 | llvm_core_agent | T141 | selective VM policy | 核心函数三层 VM，普通关键函数单层 VM，非关键函数 OLLVM。 |
+| T143 | anti_analysis_agent | T142 | anti-analysis cost control | 高成本检测按触发点和频率限流。 |
+| T144 | qa_agent | T141-T143 | performance acceptance | 防御优先前提下，性能和资源达到当前实现最优。 |
+
+## Batch 14：最终验收
+
+| Task | Owner | 依赖 | 输出 | 验收 |
+|---|---|---|---|---|
+| T150 | qa_agent | 全部 | protected sample set | Windows/Linux/Android/iOS 样本齐全。 |
+| T151 | qa_agent | T150 | behavior report | 保护前后行为一致。 |
+| T152 | qa_agent | T150 | string report | release protected 产物关键明文字符串为 0。 |
+| T153 | qa_agent | T150 | anti-IDA/OllyDbg report | 关键函数 F5/xref/调试指标达标。 |
+| T154 | qa_agent | T150 | hostile environment report | 硬件断点、内存断点、DLL/SO 注入、XP、root 检测通过。 |
+| T155 | main_agent | T151-T154 | final sign-off | 判断是否达到 VMProtect 同梯队商用强保护门槛。 |
+
+## Main Agent Runtime Protocol
+
+1. 每个 batch 开始前，`main_agent` 下发任务包：owner、scope、allowed files、dependencies、tests、acceptance。
+2. 子 agent 每次提交必须包含：改动摘要、文件列表、测试命令、失败项、需要决策的问题、引用资料链接。
+3. 子 agent 不得私自修改 `BytecodeSpec.md`、`VMRuntimeABI.md`、`ProtectionConfig.md`；需要修改时上报 `main_agent`。
+4. `main_agent` 对 blocker 的处理顺序：复现实测 -> 联网查官方资料 -> 判定接口或局部实现问题 -> 更新任务和文档 -> 重新下发。
+5. 资料优先级：官方文档、平台源码、标准规范、release notes、实测结果；博客和论坛只能作为线索。
+
+## Measurable Anti-Analysis Gates
+
+| Gate | 指标 |
+|---|---|
+| G1 字符串 | `strings`、平台对象扫描、APK/IPA 解包扫描中，关键业务字符串、URL、密钥、授权字段为 0。 |
+| G2 随机性 | 同一输入不同 seed，opcode map、handler order、bytecode layout、section layout、junk templates 必须明显不同。 |
+| G3 IDA | 关键函数自动 F5 失败或伪代码严重失真，真实调用图不可直接从 xref 追踪。 |
+| G4 OllyDbg/x64dbg | 受保护 Windows 样本在调试/断点场景中触发检测或降级策略。 |
+| G5 注入 | 异常 DLL/SO、hook 框架、可疑模块映射触发检测，正常环境误报受控。 |
+| G6 Android hostile env | root、Xposed/LSPosed、Frida/hook 相关检测在测试样本中可触发。 |
+| G7 性能 | 在当前防御 profile 不降低的前提下持续优化；任何性能优化不得移除硬性防御能力。 |
+
+## Initial Repo Layout
+
+```text
+plan/1.txt
+docs/ARCHITECTURE.md
+docs/TASKS.md
+docs/SECURITY_POLICY.md
+docs/CI_SECRETS.md
+docs/specs/PassPipelineSpec.md
+docs/specs/BytecodeSpec.md
+docs/specs/VMRuntimeABI.md
+docs/specs/ProtectionConfig.md
+docs/specs/Acceptance.md
+src/core/
+src/runtime/
+src/anti_analysis/
+src/platform/windows/
+src/platform/linux/
+src/platform/android/
+src/platform/ios/
+tools/vmp/
+tests/
+.github/workflows/
+```
+
+## Assumptions
+
+| 假设 | 内容 |
+|---|---|
+| A1 | 防御优先级高于性能和资源占用。 |
+| A2 | “VMProtect 同梯队”按能力集合和逆向成本验收，不以完全复刻其内部实现为目标。 |
+| A3 | “完美反 IDA/OllyDbg”落地为可验收指标：关键函数自动分析失败或严重失真、真实 xref 不可直接追踪、关键字符串无明文。 |
+| A4 | `passwd.txt` 只作为迁移来源，执行阶段不应把其中内容打印、提交或写入 workflow。 |
+| A5 | 非 Linux 平台编译/测试使用 GitHub Actions；Android 必须跑模拟器；iOS 当前阶段只做逻辑可运行验证。 |
+| A6 | LLVM IR 是核心保护入口，平台差异进入 runtime、loader、后处理和 CI 适配层。 |

@@ -1,0 +1,36 @@
+name: platform-ios-logic
+
+on:
+  pull_request:
+    paths:
+      - "src/platform/**"
+      - "tests/platform/**"
+      - "docs/platform/**"
+      - ".github/workflows/platform-ios-logic.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  macho-signing-logic:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Logical acceptance
+        run: tests/platform/ios_logic_check.sh
+
+      - name: Build iOS adapter for simulator
+        run: |
+          cmake -S src/platform -B build/ios-logic \
+            -DPLATFORM_ADAPTER_TARGET=ios \
+            -DCMAKE_SYSTEM_NAME=iOS \
+            -DCMAKE_OSX_ARCHITECTURES=arm64 \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/ios-logic --config Release
+
+      - name: Signing placeholder
+        run: |
+          echo "Signing assets are available only through GitHub Secrets and are not printed."

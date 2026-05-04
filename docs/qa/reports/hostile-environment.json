@@ -1,0 +1,159 @@
+{
+  "android_baseline_probe_report": "docs/qa/reports/android-hostile-triggers.json",
+  "android_baseline_trigger_findings": [
+    {
+      "action": "deny_protected_execution",
+      "category": "root",
+      "evidence": [
+        "/system/xbin/su"
+      ],
+      "severity": "hostile",
+      "signal": "su_or_magisk_path_present",
+      "source": "android_filesystem"
+    },
+    {
+      "action": "deny_protected_execution",
+      "category": "root",
+      "evidence": "ro.debuggable=1",
+      "severity": "hostile",
+      "signal": "ro_debuggable_enabled",
+      "source": "android_getprop"
+    }
+  ],
+  "android_real_trigger_findings": [],
+  "android_real_trigger_report": "docs/qa/reports/android-hostile-triggers.json",
+  "blocking_note": "Synthetic policy triggers, Linux local probes, optional controlled Windows reports when present, and Android emulator baseline probes do not satisfy hard acceptance; external Windows hardware breakpoint/DLL injection and Android root/Xposed/LSPosed/Frida/hook trigger reports are still required.",
+  "covered_categories": [
+    "debugger",
+    "hardware_breakpoint",
+    "hook_framework",
+    "injection",
+    "memory_breakpoint",
+    "root"
+  ],
+  "external_required_trigger_types": [],
+  "linux_real_trigger_findings": [
+    {
+      "action": "deny_protected_execution",
+      "category": "injection",
+      "confidence": 0.95,
+      "details": {
+        "exit_code": "0",
+        "trigger_mode": "ld_preload"
+      },
+      "severity": "hostile",
+      "signal": "ld_preload_module_mapped",
+      "source": "linux_proc_maps"
+    },
+    {
+      "action": "deny_protected_execution",
+      "category": "debugger",
+      "confidence": 0.9,
+      "details": {
+        "exit_code": "0",
+        "ptrace_result": "0",
+        "tracer_pid": "73105",
+        "trigger_mode": "ptrace_traceme"
+      },
+      "severity": "hostile",
+      "signal": "tracer_pid_nonzero",
+      "source": "linux_proc_status_ptrace_traceme"
+    }
+  ],
+  "linux_real_trigger_report": "docs/qa/reports/linux-hostile-triggers.json",
+  "local_controlled_trigger_types": [
+    "ld_preload_module_mapped",
+    "tracer_pid_nonzero"
+  ],
+  "missing_required_external_triggers": [
+    "windows_hardware_breakpoint",
+    "windows_memory_breakpoint",
+    "windows_dll_injection",
+    "android_root",
+    "android_xposed_lsposed",
+    "android_frida_hook"
+  ],
+  "normal_environment_findings": 0,
+  "real_platform_trigger_scope": "partial_linux",
+  "real_platform_triggers": true,
+  "real_trigger_types": [],
+  "schema": "vmp.qa.hostile_environment.v1",
+  "status": "blocked",
+  "synthetic_policy_findings": [
+    {
+      "action": "deny_protected_execution",
+      "category": "debugger",
+      "confidence": 0.95,
+      "details": {},
+      "severity": "hostile",
+      "signal": "debugger_attached",
+      "source": "synthetic_windows"
+    },
+    {
+      "action": "deny_protected_execution",
+      "category": "hardware_breakpoint",
+      "confidence": 0.9,
+      "details": {},
+      "severity": "hostile",
+      "signal": "external_dr_register",
+      "source": "synthetic_windows"
+    },
+    {
+      "action": "deny_protected_execution",
+      "category": "memory_breakpoint",
+      "confidence": 0.9,
+      "details": {},
+      "severity": "hostile",
+      "signal": "guard_page_breakpoint",
+      "source": "synthetic_windows"
+    },
+    {
+      "action": "deny_protected_execution",
+      "category": "injection",
+      "confidence": 0.9,
+      "details": {},
+      "severity": "hostile",
+      "signal": "unexpected_module",
+      "source": "synthetic_windows"
+    },
+    {
+      "action": "deny_protected_execution",
+      "category": "injection",
+      "confidence": 0.9,
+      "details": {},
+      "severity": "hostile",
+      "signal": "ld_preload_module",
+      "source": "synthetic_linux"
+    },
+    {
+      "action": "deny_protected_execution",
+      "category": "root",
+      "confidence": 0.9,
+      "details": {},
+      "severity": "hostile",
+      "signal": "root_indicator",
+      "source": "synthetic_android"
+    },
+    {
+      "action": "deny_protected_execution",
+      "category": "hook_framework",
+      "confidence": 0.9,
+      "details": {},
+      "severity": "hostile",
+      "signal": "xposed_or_frida_indicator",
+      "source": "synthetic_android"
+    }
+  ],
+  "synthetic_policy_triggers": 7,
+  "synthetic_trigger_types": [
+    "debugger_attached",
+    "external_dr_register",
+    "guard_page_breakpoint",
+    "ld_preload_module",
+    "root_indicator",
+    "unexpected_module",
+    "xposed_or_frida_indicator"
+  ],
+  "windows_real_trigger_findings": [],
+  "windows_real_trigger_report": null
+}

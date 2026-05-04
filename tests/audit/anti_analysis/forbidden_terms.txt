@@ -1,0 +1,8 @@
+persistence
+privilege escalation
+security-product bypass
+process injection
+credential access
+network activity
+destructive behavior
+platform probing
