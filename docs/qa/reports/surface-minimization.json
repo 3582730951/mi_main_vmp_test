@@ -1,12 +1,22 @@
 {
   "avoidable_surface_findings": 0,
-  "generated_at_utc": "2026-05-05T08:22:59.191315Z",
+  "generated_at_utc": "2026-05-05T08:35:36.139643Z",
   "missing_artifacts": [],
-  "policy_note": "Mandatory executable-container signatures are observed, not treated as removable. This gate fails on avoidable product, VM, OLLVM, protected plaintext, explicit import-resolver markers, printable PE section names, COFF symbol tables, and standard PE section-name string residue.",
+  "policy_note": "Mandatory executable-container signatures are observed, not treated as removable. This gate fails on avoidable product, VM, OLLVM, protected plaintext, explicit import-resolver markers, printable PE section names, COFF symbol tables, standard PE section-name string residue, ELF section headers, and standard ELF section-name string residue.",
   "scanned_artifacts": [
     {
       "artifact": "artifacts/protected/linux/protected_release_sample",
       "container": "elf",
+      "elf_metadata_observations": {
+        "elf_class": "ELF64",
+        "section_header_count": 0,
+        "section_header_entry_size": 0,
+        "section_header_offset": 0,
+        "section_header_table_present": false,
+        "section_name_table_index": 0,
+        "standard_section_string_hits": [],
+        "status": "observed"
+      },
       "elf_observations": {
         "export_count": 0,
         "export_names": [],
@@ -46,6 +56,7 @@
     {
       "artifact": "samples/protected_chain/out/protected_sample.vmp",
       "container": "opaque",
+      "elf_metadata_observations": {},
       "elf_observations": {},
       "external_tool_observations": {
         "capa": {
@@ -74,6 +85,7 @@
     {
       "artifact": "build/windows-protected-cross/protected_release_sample.exe",
       "container": "pe",
+      "elf_metadata_observations": {},
       "elf_observations": {},
       "external_tool_observations": {
         "capa": {

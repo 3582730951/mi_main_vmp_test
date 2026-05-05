@@ -40,6 +40,25 @@ STANDARD_PE_SECTION_NAMES = (
     b".edata",
 )
 
+STANDARD_ELF_SECTION_NAMES = (
+    b".text",
+    b".rodata",
+    b".data",
+    b".bss",
+    b".dynamic",
+    b".dynsym",
+    b".dynstr",
+    b".rela.dyn",
+    b".rela.plt",
+    b".plt",
+    b".got",
+    b".eh_frame",
+    b".comment",
+    b".symtab",
+    b".strtab",
+    b".shstrtab",
+)
+
 
 def run_tool(args: list[str], cwd: Path) -> tuple[int, str]:
     try:
@@ -370,6 +389,77 @@ def elf_observations(root: Path, artifact: Path) -> dict[str, Any]:
     }
 
 
+def elf_metadata_observations(artifact: Path) -> dict[str, Any]:
+    data = artifact.read_bytes()
+    if not data.startswith(b"\x7fELF"):
+        return {}
+    elf_class = data[4] if len(data) > 4 else 0
+    endian = data[5] if len(data) > 5 else 0
+    if endian == 1:
+        prefix = "<"
+    elif endian == 2:
+        prefix = ">"
+    else:
+        return {"status": "error", "detail": "unsupported ELF endian"}
+    try:
+        if elf_class == 2:
+            e_shoff = struct.unpack_from(prefix + "Q", data, 40)[0]
+            e_shentsize = struct.unpack_from(prefix + "H", data, 58)[0]
+            e_shnum = struct.unpack_from(prefix + "H", data, 60)[0]
+            e_shstrndx = struct.unpack_from(prefix + "H", data, 62)[0]
+            class_name = "ELF64"
+        elif elf_class == 1:
+            e_shoff = struct.unpack_from(prefix + "I", data, 32)[0]
+            e_shentsize = struct.unpack_from(prefix + "H", data, 46)[0]
+            e_shnum = struct.unpack_from(prefix + "H", data, 48)[0]
+            e_shstrndx = struct.unpack_from(prefix + "H", data, 50)[0]
+            class_name = "ELF32"
+        else:
+            return {"status": "error", "detail": "unsupported ELF class"}
+    except struct.error as error:
+        return {"status": "error", "detail": str(error)}
+    standard_string_hits = []
+    for needle in STANDARD_ELF_SECTION_NAMES:
+        offset = data.find(needle)
+        if offset >= 0:
+            standard_string_hits.append({"pattern": needle.decode("ascii"), "offset": offset})
+    return {
+        "status": "observed",
+        "elf_class": class_name,
+        "section_header_offset": e_shoff,
+        "section_header_entry_size": e_shentsize,
+        "section_header_count": e_shnum,
+        "section_name_table_index": e_shstrndx,
+        "section_header_table_present": bool(e_shoff and e_shentsize and e_shnum),
+        "standard_section_string_hits": standard_string_hits,
+    }
+
+
+def elf_metadata_findings(observations: dict[str, Any]) -> list[dict[str, Any]]:
+    if observations.get("status") != "observed":
+        return []
+    findings: list[dict[str, Any]] = []
+    if observations.get("section_header_table_present"):
+        findings.append(
+            {
+                "category": "elf_section_header_table",
+                "pattern": "ELF section header table",
+                "offset": observations.get("section_header_offset"),
+                "evidence": {"section_header_count": observations.get("section_header_count")},
+            }
+        )
+    if observations.get("standard_section_string_hits"):
+        findings.append(
+            {
+                "category": "elf_standard_section_string",
+                "pattern": "standard ELF section-name string",
+                "offset": None,
+                "evidence": observations["standard_section_string_hits"],
+            }
+        )
+    return findings
+
+
 def scan(root: Path, artifacts: list[str]) -> dict[str, Any]:
     policy = ArtifactSurfacePolicy.default()
     scanned = []
@@ -382,7 +472,8 @@ def scan(root: Path, artifacts: list[str]) -> dict[str, Any]:
             continue
         result = policy.scan_file(path)
         pe_metadata = pe_metadata_observations(path)
-        metadata_findings = pe_metadata_findings(pe_metadata)
+        elf_metadata = elf_metadata_observations(path)
+        metadata_findings = pe_metadata_findings(pe_metadata) + elf_metadata_findings(elf_metadata)
         total_findings += len(result.findings) + len(metadata_findings)
         scanned.append(
             {
@@ -403,6 +494,7 @@ def scan(root: Path, artifacts: list[str]) -> dict[str, Any]:
                 "pe_observations": pe_observations(root, path),
                 "pe_metadata_observations": pe_metadata,
                 "elf_observations": elf_observations(root, path),
+                "elf_metadata_observations": elf_metadata,
                 "external_tool_observations": external_tool_observations(root, path),
             }
         )
@@ -416,7 +508,8 @@ def scan(root: Path, artifacts: list[str]) -> dict[str, Any]:
         "policy_note": (
             "Mandatory executable-container signatures are observed, not treated as removable. "
             "This gate fails on avoidable product, VM, OLLVM, protected plaintext, explicit import-resolver markers, "
-            "printable PE section names, COFF symbol tables, and standard PE section-name string residue."
+            "printable PE section names, COFF symbol tables, standard PE section-name string residue, "
+            "ELF section headers, and standard ELF section-name string residue."
         ),
         "syscall_policy": {
             "status": "not_implemented_for_evasion",

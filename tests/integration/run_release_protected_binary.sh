@@ -82,6 +82,8 @@ import pathlib
 import subprocess
 import sys
 
+from scripts.audit.surface_minimization_audit import elf_metadata_findings, elf_metadata_observations
+
 report = pathlib.Path(sys.argv[1])
 binary = pathlib.Path(sys.argv[2])
 sample = pathlib.Path(sys.argv[3])
@@ -103,11 +105,13 @@ forbidden = [
     b"OLLVM",
 ]
 hits = [item.decode("ascii", errors="ignore") for item in forbidden if item in data]
+elf_metadata = elf_metadata_observations(binary)
+metadata_findings = elf_metadata_findings(elf_metadata)
 strings = subprocess.run(["strings", "-a", str(binary)], check=False, text=True, stdout=subprocess.PIPE)
 string_count = len(strings.stdout.splitlines())
 report.write_text(json.dumps({
     "schema": "vmp.release.protected_binary.v1",
-    "status": "pass" if not hits else "fail",
+    "status": "pass" if not hits and not metadata_findings else "fail",
     "artifact": str(binary),
     "artifact_bytes": binary.stat().st_size,
     "embedded_sample": str(sample),
@@ -116,9 +120,11 @@ report.write_text(json.dumps({
     "stripped": True,
     "strings_count": string_count,
     "forbidden_plaintext_hits": hits,
+    "elf_metadata_observations": elf_metadata,
+    "elf_metadata_findings": metadata_findings,
     "scope_note": "Local stripped Linux executable embeds the generated encrypted VM sample and executes it through a minimal release runner. This is release-artifact evidence, not VMProtect-tier commercial proof.",
 }, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-if hits:
+if hits or metadata_findings:
     raise SystemExit(1)
 PY
 

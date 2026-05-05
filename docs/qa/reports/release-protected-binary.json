@@ -2,6 +2,17 @@
   "artifact": "/workspace/artifacts/protected/linux/protected_release_sample",
   "artifact_bytes": 8408,
   "behavior_cases_passed": 4,
+  "elf_metadata_findings": [],
+  "elf_metadata_observations": {
+    "elf_class": "ELF64",
+    "section_header_count": 0,
+    "section_header_entry_size": 0,
+    "section_header_offset": 0,
+    "section_header_table_present": false,
+    "section_name_table_index": 0,
+    "standard_section_string_hits": [],
+    "status": "observed"
+  },
   "embedded_sample": "/workspace/tests/integration/.release-build/protected_sample.vmp",
   "embedded_sample_bytes": 133,
   "forbidden_plaintext_hits": [],
