@@ -34,10 +34,6 @@ PY
 c++ -std=c++17 -O2 -DVMP_DISABLE_RUNTIME_ENTRY_EXPORTS=1 -fvisibility=hidden -fdata-sections -ffunction-sections \
   -I"${BUILD_DIR}" -I"${ROOT_DIR}/src" \
   "${ROOT_DIR}/tools/vmp/protected_release_main.cpp" \
-  "${ROOT_DIR}/src/core/Deterministic.cpp" \
-  "${ROOT_DIR}/src/core/OpcodeMap.cpp" \
-  "${ROOT_DIR}/src/core/Bytecode.cpp" \
-  "${ROOT_DIR}/src/runtime/VMRuntime.cpp" \
   -Wl,--gc-sections \
   -o "${BINARY_PATH}"
 
@@ -85,7 +81,7 @@ report.write_text(json.dumps({
     "stripped": True,
     "strings_count": string_count,
     "forbidden_plaintext_hits": hits,
-    "scope_note": "Local stripped Linux executable embeds the generated encrypted VM sample and executes it through the VM runtime. This is release-artifact evidence, not VMProtect-tier commercial proof.",
+    "scope_note": "Local stripped Linux executable embeds the generated encrypted VM sample and executes it through a minimal release runner. This is release-artifact evidence, not VMProtect-tier commercial proof.",
 }, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 if hits:
     raise SystemExit(1)

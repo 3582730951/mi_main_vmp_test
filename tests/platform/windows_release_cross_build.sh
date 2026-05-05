@@ -41,10 +41,6 @@ exe="$build_dir/protected_release_sample.exe"
 "$cc" -std=c++17 -O2 -s -DVMP_DISABLE_RUNTIME_ENTRY_EXPORTS=1 -fvisibility=hidden -fdata-sections -ffunction-sections \
   -I "$build_dir" -I src \
   tools/vmp/protected_release_main.cpp \
-  src/core/Deterministic.cpp \
-  src/core/OpcodeMap.cpp \
-  src/core/Bytecode.cpp \
-  src/runtime/VMRuntime.cpp \
   -Wl,--gc-sections \
   -o "$exe"
 

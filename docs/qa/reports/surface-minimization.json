@@ -1,6 +1,6 @@
 {
   "avoidable_surface_findings": 0,
-  "generated_at_utc": "2026-05-05T06:41:40.951790Z",
+  "generated_at_utc": "2026-05-05T06:48:52.294616Z",
   "missing_artifacts": [],
   "policy_note": "Mandatory executable-container signatures are observed, not treated as removable. This gate fails on avoidable product, VM, OLLVM, protected plaintext, and explicit import-resolver markers.",
   "scanned_artifacts": [
@@ -8,11 +8,9 @@
       "artifact": "artifacts/protected/linux/protected_release_sample",
       "container": "elf",
       "elf_observations": {
-        "export_count": 1,
-        "export_names": [
-          "_ZTISt13runtime_error@GLIBCXX_3.4"
-        ],
-        "import_count": 29,
+        "export_count": 0,
+        "export_names": [],
+        "import_count": 5,
         "note": "ELF dynamic linker metadata is recorded separately from avoidable protected-surface markers.",
         "status": "observed",
         "tool": "readelf"
@@ -48,11 +46,9 @@
       "passed": true,
       "pe_observations": {
         "export_directory_present": false,
-        "import_count": 72,
+        "import_count": 41,
         "import_dlls": [
           "KERNEL32.dll",
-          "libgcc_s_seh-1.dll",
-          "libstdc++-6.dll",
           "msvcrt.dll"
         ],
         "note": "PE headers and CRT TLS/import directories are mandatory container/runtime observations; avoidable product markers are reported as findings.",

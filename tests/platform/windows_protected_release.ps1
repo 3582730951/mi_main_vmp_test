@@ -66,11 +66,7 @@ pathlib.Path(sys.argv[2]).write_text(
 '@ | python3 - $sample $header
 
 $sourceList = @(
-  "tools/vmp/protected_release_main.cpp",
-  "src/core/Deterministic.cpp",
-  "src/core/OpcodeMap.cpp",
-  "src/core/Bytecode.cpp",
-  "src/runtime/VMRuntime.cpp"
+  "tools/vmp/protected_release_main.cpp"
 )
 
 $exe = Join-Path $BuildDir "protected_release_sample.exe"
