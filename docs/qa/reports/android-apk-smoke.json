@@ -20,45 +20,56 @@
   "apk_signature_verified": true,
   "artifacts": [
     {
-      "bytes": 24192,
+      "bytes": 24416,
       "path": "build/android-x86_64/libvmp_platform.so",
-      "sha256": "eec3581882fa3c026f06d75bef84f584f714f94fd89ba9dead9bdd5fc3195f3a"
+      "sha256": "e5a8eca152285fbcd51d4cf22b0568133458b5071eb86437607dfa84a497eca9"
     },
     {
-      "bytes": 365664,
+      "bytes": 391120,
       "path": "build/android-x86_64/libvmp_smoke_jni.so",
-      "sha256": "71bf5cf5f5cbab45714331ac5239a04c00c98984ea052a05ef77398bfd7181f2"
+      "sha256": "60f6b0bf332dd76d6d56846592d5b3aba8c4358a60a85da35109731ab432705f"
     },
     {
-      "bytes": 25320,
+      "bytes": 25552,
       "path": "build/android-arm64-v8a/libvmp_platform.so",
-      "sha256": "2032174dc451fb50bce37869c01d853d5a1898b9bb912779c1a599e09356012e"
+      "sha256": "03a15ad9d0bb07fe754fc6e97d29962ff18c11bb0de534f955f675f7ebbb5794"
     },
     {
-      "bytes": 380768,
+      "bytes": 403232,
       "path": "build/android-arm64-v8a/libvmp_smoke_jni.so",
-      "sha256": "91e9334e8bec47a79c295dd1a783cb8886a07e5d16f7d96bd4bda22a407c3e11"
+      "sha256": "671e17f2b1fb2ec83f9eba5215b806f83ee8863b3a1b7e25d2ce2280889272ca"
     },
     {
-      "bytes": 119,
+      "bytes": 133,
       "path": "samples/protected_chain/out/protected_sample.vmp",
-      "sha256": "01b59aa1436c16d29132f7543eb3cf6b0820adfe2501023a4f2f5aae70f3ace6"
+      "sha256": "0670fdf948e5b5614e26f2f528399286eb50c2189a6cb0d6301bda96d6245521"
     },
     {
-      "bytes": 275203,
+      "bytes": 291587,
       "path": "build/android-apk-smoke/vmp-smoke.apk",
-      "sha256": "e498d3e3d59dcd02004402adba447a37f72bd09936835ceaa4aa4a7e7131d8f9"
+      "sha256": "978932f75498bdfc3057dcac31f8eaa2bbaa0e6fd530c1c7f8e322216b3625f0"
     }
   ],
   "blocking_note": null,
-  "ci_execution": false,
+  "ci_execution": true,
   "core_logic_consistent": true,
   "device": {
     "abi": "x86_64",
     "api_level": "35",
     "model": "Android SDK built for x86_64"
   },
-  "github_actions": false,
+  "github_actions": true,
+  "github_event_name": "workflow_dispatch",
+  "github_job": "ndk-emulator-smoke",
+  "github_ref": "refs/heads/main",
+  "github_ref_name": "main",
+  "github_ref_protected": "true",
+  "github_repository": "3582730951/mi_main_vmp_test",
+  "github_run_attempt": "1",
+  "github_run_id": "25354417412",
+  "github_run_url": "https://github.com/3582730951/mi_main_vmp_test/actions/runs/25354417412",
+  "github_sha": "a2b40f9d9990302ddcaa098760633722aaa99e63",
+  "github_workflow": "platform-android",
   "hostile_evidence_claim": false,
   "hostile_trigger_executed": false,
   "hostile_trigger_types": [],
@@ -70,18 +81,18 @@
   "protected_payload_embedded_in_jni": true,
   "protected_sample_asset_packaged": false,
   "protected_sample_executed": true,
-  "release_claim": false,
+  "release_claim": true,
   "release_like_local_test_build": true,
-  "release_signing_secret_used": false,
+  "release_signing_secret_used": true,
   "result_output": [
     "--------- beginning of main",
-    "05-04 08:33:04.949  1978  1978 I VMP_SMOKE: sum=42;platform=3;protected_cases=4;"
+    "05-05 02:22:26.788  2222  2222 I VMP_SMOKE: sum=42;platform=3;protected_cases=4;"
   ],
   "result_read_exit_code": 0,
-  "runner_name": null,
-  "runner_os": null,
+  "runner_name": "GitHub Actions 1000004746",
+  "runner_os": "Linux",
   "schema": "vmp.platform.android_apk_smoke.v1",
   "scope_note": "This is real emulator APK install and Java/JNI execution evidence from a non-debuggable APK. The APK packages x86_64 and arm64-v8a protected native libraries and runs the generated protected_sample.vmp embedded inside the JNI .so through the VM runtime. It is not hostile-environment trigger evidence.",
-  "signing_key_scope": "local_test_release_keystore",
+  "signing_key_scope": "github_secret_keystore",
   "status": "pass"
 }

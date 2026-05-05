@@ -1,0 +1,73 @@
+{
+  "schema": "vmp.platform.windows_hostile_triggers.v1",
+  "status": "pass",
+  "ci_execution": true,
+  "github_actions": true,
+  "github_run_id": "25354416553",
+  "github_run_attempt": "1",
+  "github_workflow": "platform-windows",
+  "github_repository": "3582730951/mi_main_vmp_test",
+  "github_sha": "a2b40f9d9990302ddcaa098760633722aaa99e63",
+  "github_event_name": "workflow_dispatch",
+  "github_ref": "refs/heads/main",
+  "github_ref_name": "main",
+  "github_ref_protected": "true",
+  "github_job": "build-protect-run",
+  "github_run_url": "https://github.com/3582730951/mi_main_vmp_test/actions/runs/25354416553",
+  "runner_os": "Windows",
+  "runner_name": "GitHub Actions 1000004745",
+  "authorized_hostile_profile": true,
+  "hostile_profile_id": "windows-ci-authorized-hostile-profile-v1",
+  "controlled_trigger_evidence": true,
+  "debugger_present": false,
+  "guard_page_observed": true,
+  "controlled_module_load_observed": true,
+  "non_self_hardware_breakpoint_observed": true,
+  "memory_page_breakpoint_observed": true,
+  "external_debugger_observed": true,
+  "external_dll_injection_observed": true,
+  "findings": [
+    {
+      "category": "memory_breakpoint",
+      "signal": "guard_page_protection_observed",
+      "source": "windows_virtual_memory",
+      "severity": "hostile",
+      "action": "deny_protected_execution",
+      "controlled": true
+    },
+    {
+      "category": "injection",
+      "signal": "controlled_module_load_observed",
+      "source": "windows_process_modules",
+      "severity": "suspicious",
+      "action": "degrade_protection_checks",
+      "controlled": true
+    },
+    {
+      "category": "hardware_breakpoint",
+      "signal": "external_hardware_dr_register_observed",
+      "source": "authorized_windows_ci_hostile_profile",
+      "severity": "hostile",
+      "action": "deny_protected_execution",
+      "controlled": false
+    },
+    {
+      "category": "debugger",
+      "signal": "external_debugger_attached",
+      "source": "authorized_windows_ci_hostile_profile",
+      "severity": "hostile",
+      "action": "deny_protected_execution",
+      "controlled": false
+    },
+    {
+      "category": "injection",
+      "signal": "external_dll_injection_observed",
+      "source": "authorized_windows_ci_hostile_profile",
+      "severity": "hostile",
+      "action": "deny_protected_execution",
+      "controlled": false
+    }
+  ],
+  "missing_required_external_triggers": [],
+  "blocking_note": "Authorized Windows hostile profile covered hardware breakpoint, memory breakpoint, debugger, and DLL injection trigger classes on the CI runner."
+}

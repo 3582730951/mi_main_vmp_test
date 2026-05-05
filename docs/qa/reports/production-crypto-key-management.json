@@ -1,0 +1,30 @@
+{
+  "ci_execution": true,
+  "generated_at_utc": "2026-05-05T02:21:18.517782Z",
+  "github_actions": true,
+  "github_event_name": "workflow_dispatch",
+  "github_ref": "refs/heads/main",
+  "github_ref_name": "main",
+  "github_ref_protected": "true",
+  "github_repository": "3582730951/mi_main_vmp_test",
+  "github_run_attempt": "1",
+  "github_run_id": "25354419211",
+  "github_run_url": "https://github.com/3582730951/mi_main_vmp_test/actions/runs/25354419211",
+  "github_sha": "a2b40f9d9990302ddcaa098760633722aaa99e63",
+  "github_workflow": "vmprotect-tier",
+  "key_derivation_inputs": [
+    "seed",
+    "function hash",
+    "platform salt",
+    "build salt"
+  ],
+  "key_rotation_supported": true,
+  "production_crypto": true,
+  "protected_sample_sha256": "0670fdf948e5b5614e26f2f528399286eb50c2189a6cb0d6301bda96d6245521",
+  "release_report_sha256": "759710b637732d36f67902759eb691862c66cf6b52abe3a6b2e355db92cafe71",
+  "runner_name": "GitHub Actions 1000004748",
+  "runner_os": "Linux",
+  "schema": "vmp.qa.production_crypto_key_management.v1",
+  "static_keys_present": false,
+  "status": "pass"
+}

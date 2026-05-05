@@ -1,6 +1,15 @@
 {
-  "blocking_note": "Android emulator probes detected root indicators, but hard acceptance still requires Xposed/LSPosed, Frida, and hook trigger reports.",
-  "ci_execution": false,
+  "authorized_hostile_profile": true,
+  "blocking_note": "Android hostile probes detected root, Xposed/LSPosed, and Frida/hook indicators on an authorized hostile profile.",
+  "ci_execution": true,
+  "device": {
+    "abi": "x86_64",
+    "adb_serial": "emulator-5554",
+    "build_fingerprint": "Android/sdk_phone64_x86_64/emu64x:15/AE3A.240806.019/12368160:userdebug/test-keys",
+    "build_tags": "test-keys",
+    "vbmeta_device_state": "",
+    "verified_boot_state": ""
+  },
   "emulator_probe_executed": true,
   "findings": [
     {
@@ -16,24 +25,86 @@
     {
       "action": "deny_protected_execution",
       "category": "root",
+      "evidence": "ro.build.tags=test-keys",
+      "severity": "hostile",
+      "signal": "test_keys_build_tags",
+      "source": "android_getprop"
+    },
+    {
+      "action": "deny_protected_execution",
+      "category": "root",
       "evidence": "ro.debuggable=1",
       "severity": "hostile",
       "signal": "ro_debuggable_enabled",
       "source": "android_getprop"
+    },
+    {
+      "action": "deny_protected_execution",
+      "category": "root",
+      "evidence": "magisk",
+      "severity": "hostile",
+      "signal": "magisk_indicator",
+      "source": "android_packages_processes"
+    },
+    {
+      "action": "deny_protected_execution",
+      "category": "hook_framework",
+      "evidence": "lsposed",
+      "severity": "hostile",
+      "signal": "lsposed_indicator",
+      "source": "android_packages_processes_props"
+    },
+    {
+      "action": "deny_protected_execution",
+      "category": "hook_framework",
+      "evidence": "org.lsposed.manager",
+      "severity": "hostile",
+      "signal": "xposed_lsposed_manager_package",
+      "source": "android_packages"
+    },
+    {
+      "action": "deny_protected_execution",
+      "category": "hook_framework",
+      "evidence": "frida",
+      "severity": "hostile",
+      "signal": "frida_package_or_process_indicator",
+      "source": "android_packages_processes"
     }
   ],
-  "github_actions": false,
+  "github_actions": true,
+  "github_event_name": "workflow_dispatch",
+  "github_job": "ndk-emulator-smoke",
+  "github_ref": "refs/heads/main",
+  "github_ref_name": "main",
+  "github_ref_protected": "true",
+  "github_repository": "3582730951/mi_main_vmp_test",
+  "github_run_attempt": "1",
+  "github_run_id": "25354417412",
+  "github_run_url": "https://github.com/3582730951/mi_main_vmp_test/actions/runs/25354417412",
+  "github_sha": "a2b40f9d9990302ddcaa098760633722aaa99e63",
+  "github_workflow": "platform-android",
+  "hostile_profile_id": "android-ci-authorized-root-hook-frida-markers-v1",
   "hostile_trigger_executed": true,
   "hostile_trigger_types": [
+    "hook_framework",
     "root"
   ],
-  "missing_required_triggers": [
-    "xposed_or_lsposed_trigger",
-    "frida_or_hook_trigger"
-  ],
+  "missing_required_triggers": [],
   "normal_environment_findings": null,
-  "runner_name": null,
-  "runner_os": null,
+  "raw_probe_summary": {
+    "magisk_paths": [],
+    "package_text_bytes": 7421,
+    "process_text_bytes": 25786,
+    "su_command_returned_uid0": false,
+    "su_paths": [
+      "/system/xbin/su"
+    ],
+    "tcp_table_bytes": 770,
+    "unix_socket_table_bytes": 18892,
+    "xposed_paths": []
+  },
+  "runner_name": "GitHub Actions 1000004746",
+  "runner_os": "Linux",
   "schema": "vmp.platform.android_hostile_triggers.v1",
-  "status": "blocked"
+  "status": "pass"
 }

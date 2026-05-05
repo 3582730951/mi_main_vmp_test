@@ -16,6 +16,7 @@ import json
 import os
 import re
 import urllib.request
+import urllib.parse
 import zipfile
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -760,6 +761,19 @@ def fetch_github_artifacts(repository: str, run_id: str, github_auth: str) -> di
 
 
 def download_github_artifact_zip(download_url: str, github_auth: str) -> bytes:
+    class ArtifactRedirectHandler(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
+            if redirected is None:
+                return None
+            source_host = urllib.parse.urlparse(req.full_url).netloc
+            target_host = urllib.parse.urlparse(newurl).netloc
+            if target_host and target_host != source_host:
+                redirected.remove_header("Authorization")
+                redirected.remove_header("Accept")
+                redirected.remove_header("X-GitHub-Api-Version")
+            return redirected
+
     request = urllib.request.Request(
         download_url,
         headers={
@@ -769,7 +783,8 @@ def download_github_artifact_zip(download_url: str, github_auth: str) -> bytes:
             "X-GitHub-Api-Version": "2022-11-28",
         },
     )
-    with urllib.request.urlopen(request, timeout=30) as response:
+    opener = urllib.request.build_opener(ArtifactRedirectHandler)
+    with opener.open(request, timeout=30) as response:
         return response.read()
 
 

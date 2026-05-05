@@ -1,11 +1,11 @@
 {
   "artifacts": [
     {
-      "bytes": 24192,
+      "bytes": 24416,
       "path": "build/android-x86_64/libvmp_platform.so"
     },
     {
-      "bytes": 25320,
+      "bytes": 25552,
       "path": "build/android-arm64-v8a/libvmp_platform.so"
     },
     {
@@ -14,7 +14,7 @@
     }
   ],
   "blocking_note": null,
-  "ci_execution": false,
+  "ci_execution": true,
   "core_logic_consistent": true,
   "device": {
     "abi": "x86_64",
@@ -22,11 +22,22 @@
     "model": "Android SDK built for x86_64"
   },
   "emulator_execution": true,
-  "github_actions": false,
+  "github_actions": true,
+  "github_event_name": "workflow_dispatch",
+  "github_job": "ndk-emulator-smoke",
+  "github_ref": "refs/heads/main",
+  "github_ref_name": "main",
+  "github_ref_protected": "true",
+  "github_repository": "3582730951/mi_main_vmp_test",
+  "github_run_attempt": "1",
+  "github_run_id": "25354417412",
+  "github_run_url": "https://github.com/3582730951/mi_main_vmp_test/actions/runs/25354417412",
+  "github_sha": "a2b40f9d9990302ddcaa098760633722aaa99e63",
+  "github_workflow": "platform-android",
   "jni_on_load_called": true,
   "protected_so_loaded": true,
-  "runner_name": null,
-  "runner_os": null,
+  "runner_name": "GitHub Actions 1000004746",
+  "runner_os": "Linux",
   "schema": "vmp.platform.android_emulator_smoke.v1",
   "scope_note": "This is real emulator execution of the Android x86_64 .so through a native dlopen/JNI_OnLoad smoke harness. It is not APK install evidence and does not satisfy hostile-environment triggers.",
   "smoke_exit_code": 0,

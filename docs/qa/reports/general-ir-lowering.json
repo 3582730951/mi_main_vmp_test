@@ -1,0 +1,33 @@
+{
+  "bounded_i32_only": false,
+  "broad_ir_lowering": true,
+  "ci_execution": true,
+  "generated_at_utc": "2026-05-05T02:21:18.517782Z",
+  "github_actions": true,
+  "github_event_name": "workflow_dispatch",
+  "github_ref": "refs/heads/main",
+  "github_ref_name": "main",
+  "github_ref_protected": "true",
+  "github_repository": "3582730951/mi_main_vmp_test",
+  "github_run_attempt": "1",
+  "github_run_id": "25354419211",
+  "github_run_url": "https://github.com/3582730951/mi_main_vmp_test/actions/runs/25354419211",
+  "github_sha": "a2b40f9d9990302ddcaa098760633722aaa99e63",
+  "github_workflow": "vmprotect-tier",
+  "protected_sample_sha256": "0670fdf948e5b5614e26f2f528399286eb50c2189a6cb0d6301bda96d6245521",
+  "runner_name": "GitHub Actions 1000004748",
+  "runner_os": "Linux",
+  "schema": "vmp.qa.general_ir_lowering.v1",
+  "stage_manifest_sha256": "4cda5eff4187f13db0dcb093c9dee8aa13d7789df1488eb9255e67b7fe1a97ff",
+  "status": "pass",
+  "supported_ir_families": [
+    "integer arithmetic",
+    "integer comparisons",
+    "acyclic branches",
+    "selects",
+    "local load/store",
+    "host calls",
+    "return merges",
+    "nested VM dispatch"
+  ]
+}

@@ -66,6 +66,10 @@ for report in $external_reports; do
   preserve_report "$report"
 done
 
+for report in $external_reports; do
+  rm -f "$report"
+done
+
 ./acceptance.sh
 
 restore_all
