@@ -121,7 +121,7 @@ mkdir -p "$apk_root/src/com/mi/smoke" "$apk_root/classes" "$apk_root/dex" "$apk_
 
 cat >"$apk_root/AndroidManifest.xml" <<'XML'
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.mi.smoke">
-    <uses-sdk android:minSdkVersion="23" android:targetSdkVersion="35" />
+    <uses-sdk android:minSdkVersion="24" android:targetSdkVersion="35" />
     <application android:label="Smoke" android:debuggable="false">
         <activity android:name=".ProtectedSmokeActivity" android:exported="true">
             <intent-filter>
@@ -204,6 +204,7 @@ store_pass="${ANDROID_KEYSTORE_PASSWORD:-android}"
 key_pass="${ANDROID_KEY_PASSWORD:-$store_pass}"
 signing_key_scope="local_test_release_keystore"
 release_signing_secret_used="false"
+signing_key_args=()
 if [[ -n "${ANDROID_KEYSTORE_B64:-}" && -n "${ANDROID_KEYSTORE_PASSWORD:-}" ]]; then
   python3 - "$keystore" <<'PY'
 import base64
@@ -213,7 +214,42 @@ import sys
 
 pathlib.Path(sys.argv[1]).write_bytes(base64.b64decode(os.environ["ANDROID_KEYSTORE_B64"]))
 PY
-  signing_key_scope="github_secret_keystore"
+  neutral_p12="$apk_root/neutral-signing.p12"
+  neutral_key_pem="$apk_root/neutral-signing-key.pem"
+  neutral_key_pk8="$apk_root/neutral-signing-key.pk8"
+  neutral_cert="$apk_root/neutral-signing-cert.x509.pem"
+  keytool -importkeystore -noprompt \
+    -srckeystore "$keystore" \
+    -srcstorepass "$store_pass" \
+    -srckeypass "$key_pass" \
+    -srcalias "$key_alias" \
+    -destkeystore "$neutral_p12" \
+    -deststoretype PKCS12 \
+    -deststorepass "$store_pass" \
+    -destkeypass "$store_pass" \
+    -destalias neutralrelease >/dev/null
+  openssl pkcs12 \
+    -in "$neutral_p12" \
+    -nodes \
+    -nocerts \
+    -passin "pass:$store_pass" \
+    -out "$neutral_key_pem" >/dev/null 2>&1
+  openssl pkcs8 \
+    -topk8 \
+    -inform PEM \
+    -outform DER \
+    -in "$neutral_key_pem" \
+    -out "$neutral_key_pk8" \
+    -nocrypt
+  openssl req \
+    -new \
+    -x509 \
+    -key "$neutral_key_pem" \
+    -out "$neutral_cert" \
+    -days 10000 \
+    -subj "/CN=Android Test Release/O=Release/C=US" >/dev/null 2>&1
+  signing_key_args=(--key "$neutral_key_pk8" --cert "$neutral_cert")
+  signing_key_scope="github_secret_private_key_neutral_certificate"
   release_signing_secret_used="true"
 else
   keytool -genkeypair -noprompt \
@@ -225,12 +261,13 @@ else
     -keysize 2048 \
     -validity 10000 \
     -dname "CN=Android Test Release,O=Release,C=US" >/dev/null
+  signing_key_args=(--ks "$keystore" --ks-key-alias "$key_alias" --ks-pass "pass:$store_pass" --key-pass "pass:$key_pass")
 fi
 apksigner sign \
-  --ks "$keystore" \
-  --ks-key-alias "$key_alias" \
-  --ks-pass "pass:$store_pass" \
-  --key-pass "pass:$key_pass" \
+  "${signing_key_args[@]}" \
+  --v1-signing-enabled false \
+  --v2-signing-enabled true \
+  --v3-signing-enabled true \
   --out "$apk_root/mi-smoke.apk" \
   "$apk_root/aligned.apk"
 apksigner verify "$apk_root/mi-smoke.apk"
@@ -333,6 +370,8 @@ for path in artifacts:
             b"vmp_smoke",
             b"com/vmp",
             b"VMP_SMOKE",
+            b"VMPRELEA",
+            b"VMP Release",
         ):
             if marker in data:
                 jni_hits.append({"path": str(path), "marker": marker.decode("ascii")})
@@ -358,6 +397,8 @@ for marker in (
     b"com.vmp",
     b"VMP_SMOKE",
     b"VMP Smoke",
+    b"VMPRELEA",
+    b"VMP Release",
 ):
     if marker in apk_bytes:
         forbidden_apk_hits.append(marker.decode("ascii"))
