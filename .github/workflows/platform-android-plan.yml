@@ -32,7 +32,7 @@ jobs:
 
       - name: Run emulator APK and JNI smoke
         if: github.event_name == 'pull_request'
-        run: tests/platform/android_ci_emulator_smoke.sh
+        run: bash tests/platform/android_ci_emulator_smoke.sh
 
       - name: Run release-signed emulator APK and JNI smoke
         if: github.event_name != 'pull_request'
@@ -43,7 +43,7 @@ jobs:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           ANDROID_HOSTILE_PROFILE_AUTHORIZED: "true"
           ANDROID_HOSTILE_PROFILE_ID: "android-ci-authorized-root-hook-frida-markers-v1"
-        run: tests/platform/android_ci_emulator_smoke.sh
+        run: bash tests/platform/android_ci_emulator_smoke.sh
 
       - name: Validate Android GitHub Actions evidence
         if: github.event_name != 'pull_request'

@@ -8,12 +8,46 @@ $ErrorActionPreference = "Stop"
 New-Item -ItemType Directory -Force -Path $BuildDir | Out-Null
 New-Item -ItemType Directory -Force -Path (Split-Path $ReportPath) | Out-Null
 
-& bash tests/integration/run_protected_sample_chain.sh
+$sampleOut = "samples/protected_chain/out"
+if (Test-Path $sampleOut) {
+  Remove-Item -Recurse -Force $sampleOut
+}
+New-Item -ItemType Directory -Force -Path $sampleOut | Out-Null
+$sample = "samples/protected_chain/out/protected_sample.vmp"
+$builder = Join-Path $BuildDir "protected_sample_builder.exe"
+$builderSources = @(
+  "tools/vmp/protected_sample.cpp",
+  "src/core/Deterministic.cpp",
+  "src/core/OpcodeMap.cpp",
+  "src/core/ProtectionConfig.cpp",
+  "src/core/Bytecode.cpp",
+  "src/core/IRLoweringSkeleton.cpp",
+  "src/runtime/VMRuntime.cpp"
+)
+if (Get-Command cl.exe -ErrorAction SilentlyContinue) {
+  & cl.exe /nologo /std:c++17 /EHsc /O2 /W4 /WX /I src $builderSources /Fe:$builder
+} elseif (Get-Command g++ -ErrorAction SilentlyContinue) {
+  & g++ -std=c++17 -Wall -Wextra -Werror -I src $builderSources -o $builder
+} else {
+  throw "No supported Windows C++ compiler found for protected sample builder"
+}
 if ($LASTEXITCODE -ne 0) {
   exit $LASTEXITCODE
 }
 
-$sample = "samples/protected_chain/out/protected_sample.vmp"
+& $builder build $sampleOut
+if ($LASTEXITCODE -ne 0) {
+  exit $LASTEXITCODE
+}
+& $builder verify $sample
+if ($LASTEXITCODE -ne 0) {
+  exit $LASTEXITCODE
+}
+& $builder report $sample $sampleOut
+if ($LASTEXITCODE -ne 0) {
+  exit $LASTEXITCODE
+}
+
 $header = Join-Path $BuildDir "protected_sample_blob.h"
 @'
 import pathlib

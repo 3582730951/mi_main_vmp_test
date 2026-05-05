@@ -16,10 +16,10 @@ jobs:
 
       - name: Build local protection evidence
         run: |
-          tests/core/run_core_tests.sh
-          tests/core/run_llvm_plugin_test.sh
-          tests/integration/run_protected_sample_chain.sh
-          tests/integration/run_release_protected_binary.sh
+          bash tests/core/run_core_tests.sh
+          bash tests/core/run_llvm_plugin_test.sh
+          bash tests/integration/run_protected_sample_chain.sh
+          bash tests/integration/run_release_protected_binary.sh
 
       - name: Generate VMProtect-tier evidence
         run: python3 scripts/audit/generate_vmprotect_tier_evidence.py --root .
