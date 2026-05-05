@@ -1,8 +1,8 @@
 {
   "avoidable_surface_findings": 0,
-  "generated_at_utc": "2026-05-05T07:35:04.789964Z",
+  "generated_at_utc": "2026-05-05T08:22:59.191315Z",
   "missing_artifacts": [],
-  "policy_note": "Mandatory executable-container signatures are observed, not treated as removable. This gate fails on avoidable product, VM, OLLVM, protected plaintext, and explicit import-resolver markers.",
+  "policy_note": "Mandatory executable-container signatures are observed, not treated as removable. This gate fails on avoidable product, VM, OLLVM, protected plaintext, explicit import-resolver markers, printable PE section names, COFF symbol tables, and standard PE section-name string residue.",
   "scanned_artifacts": [
     {
       "artifact": "artifacts/protected/linux/protected_release_sample",
@@ -38,7 +38,9 @@
         "elf_program_headers",
         "elf_dynamic_sections"
       ],
+      "metadata_findings": [],
       "passed": true,
+      "pe_metadata_observations": {},
       "pe_observations": {}
     },
     {
@@ -64,7 +66,9 @@
       },
       "findings": [],
       "mandatory_features": [],
+      "metadata_findings": [],
       "passed": true,
+      "pe_metadata_observations": {},
       "pe_observations": {}
     },
     {
@@ -94,7 +98,24 @@
         "pe_headers",
         "data_directories"
       ],
+      "metadata_findings": [],
       "passed": true,
+      "pe_metadata_observations": {
+        "coff_symbol_count": 0,
+        "coff_symbol_table_offset": 0,
+        "coff_symbol_table_present": false,
+        "printable_section_names": [],
+        "section_count": 4,
+        "section_name_hex": [
+          "8193a5b700000000",
+          "8294a6b800000000",
+          "8395a7b900000000",
+          "8496a8ba00000000"
+        ],
+        "standard_section_names": [],
+        "standard_section_string_hits": [],
+        "status": "observed"
+      },
       "pe_observations": {
         "export_directory_present": false,
         "import_count": 1,

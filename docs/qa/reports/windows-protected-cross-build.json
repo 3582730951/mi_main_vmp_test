@@ -8,6 +8,23 @@
   "forbidden_plaintext_hits": [],
   "local_cross_compile": true,
   "pe_format": "pei-x86-64",
+  "pe_metadata_findings": [],
+  "pe_metadata_observations": {
+    "coff_symbol_count": 0,
+    "coff_symbol_table_offset": 0,
+    "coff_symbol_table_present": false,
+    "printable_section_names": [],
+    "section_count": 4,
+    "section_name_hex": [
+      "8193a5b700000000",
+      "8294a6b800000000",
+      "8395a7b900000000",
+      "8496a8ba00000000"
+    ],
+    "standard_section_names": [],
+    "standard_section_string_hits": [],
+    "status": "observed"
+  },
   "pe_observations": {
     "export_directory_present": false,
     "import_count": 1,

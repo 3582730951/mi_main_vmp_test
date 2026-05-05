@@ -10,6 +10,7 @@ import os
 import re
 import shutil
 import subprocess
+import struct
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -24,6 +25,19 @@ DEFAULT_ARTIFACTS = (
     "artifacts/protected/linux/protected_release_sample",
     "samples/protected_chain/out/protected_sample.vmp",
     "build/windows-protected-cross/protected_release_sample.exe",
+)
+
+STANDARD_PE_SECTION_NAMES = (
+    b".text",
+    b".rdata",
+    b".data",
+    b".idata",
+    b".pdata",
+    b".xdata",
+    b".reloc",
+    b".rsrc",
+    b".tls",
+    b".edata",
 )
 
 
@@ -235,6 +249,98 @@ def pe_observations(root: Path, artifact: Path) -> dict[str, Any]:
     }
 
 
+def printable_pe_name(raw: bytes) -> str:
+    stripped = raw.rstrip(b"\0")
+    if not stripped:
+        return ""
+    if any(byte < 0x20 or byte > 0x7E for byte in stripped):
+        return ""
+    try:
+        return stripped.decode("ascii")
+    except UnicodeDecodeError:
+        return ""
+
+
+def pe_metadata_observations(artifact: Path) -> dict[str, Any]:
+    data = artifact.read_bytes()
+    if not data.startswith(b"MZ"):
+        return {}
+    try:
+        pe_offset = struct.unpack_from("<I", data, 0x3C)[0]
+        if pe_offset + 24 > len(data) or data[pe_offset : pe_offset + 4] != b"PE\0\0":
+            return {"status": "error", "detail": "missing PE signature"}
+        section_count = struct.unpack_from("<H", data, pe_offset + 6)[0]
+        symbol_table = struct.unpack_from("<I", data, pe_offset + 12)[0]
+        symbol_count = struct.unpack_from("<I", data, pe_offset + 16)[0]
+        optional_header_size = struct.unpack_from("<H", data, pe_offset + 20)[0]
+        section_table = pe_offset + 24 + optional_header_size
+        if section_table + section_count * 40 > len(data):
+            return {"status": "error", "detail": "invalid PE section table"}
+        printable_sections = []
+        standard_sections = []
+        section_name_hex = []
+        for index in range(section_count):
+            raw_name = data[section_table + index * 40 : section_table + index * 40 + 8]
+            section_name_hex.append(raw_name.hex())
+            text = printable_pe_name(raw_name)
+            if text:
+                printable_sections.append(text)
+                if text.encode("ascii").split(b"$", 1)[0] in STANDARD_PE_SECTION_NAMES:
+                    standard_sections.append(text)
+    except struct.error as error:
+        return {"status": "error", "detail": str(error)}
+    standard_string_hits = []
+    for needle in STANDARD_PE_SECTION_NAMES:
+        offset = data.find(needle)
+        if offset >= 0:
+            standard_string_hits.append({"pattern": needle.decode("ascii"), "offset": offset})
+    return {
+        "status": "observed",
+        "section_count": section_count,
+        "section_name_hex": section_name_hex,
+        "printable_section_names": printable_sections,
+        "standard_section_names": standard_sections,
+        "coff_symbol_table_present": bool(symbol_table or symbol_count),
+        "coff_symbol_table_offset": symbol_table,
+        "coff_symbol_count": symbol_count,
+        "standard_section_string_hits": standard_string_hits,
+    }
+
+
+def pe_metadata_findings(observations: dict[str, Any]) -> list[dict[str, Any]]:
+    if observations.get("status") != "observed":
+        return []
+    findings: list[dict[str, Any]] = []
+    if observations.get("printable_section_names"):
+        findings.append(
+            {
+                "category": "pe_printable_section_name",
+                "pattern": "printable PE section name",
+                "offset": None,
+                "evidence": observations["printable_section_names"],
+            }
+        )
+    if observations.get("coff_symbol_table_present"):
+        findings.append(
+            {
+                "category": "pe_coff_symbol_table",
+                "pattern": "COFF symbol/string table",
+                "offset": observations.get("coff_symbol_table_offset"),
+                "evidence": {"symbol_count": observations.get("coff_symbol_count")},
+            }
+        )
+    if observations.get("standard_section_string_hits"):
+        findings.append(
+            {
+                "category": "pe_standard_section_string",
+                "pattern": "standard PE section-name string",
+                "offset": None,
+                "evidence": observations["standard_section_string_hits"],
+            }
+        )
+    return findings
+
+
 def elf_observations(root: Path, artifact: Path) -> dict[str, Any]:
     if not artifact.exists() or not artifact.read_bytes().startswith(b"\x7fELF"):
         return {}
@@ -275,13 +381,15 @@ def scan(root: Path, artifacts: list[str]) -> dict[str, Any]:
             missing.append(relative)
             continue
         result = policy.scan_file(path)
-        total_findings += len(result.findings)
+        pe_metadata = pe_metadata_observations(path)
+        metadata_findings = pe_metadata_findings(pe_metadata)
+        total_findings += len(result.findings) + len(metadata_findings)
         scanned.append(
             {
                 "artifact": relative,
                 "container": result.container,
                 "mandatory_features": list(result.mandatory_features),
-                "passed": result.passed,
+                "passed": result.passed and not metadata_findings,
                 "findings": [
                     {
                         "category": finding.category.value,
@@ -291,7 +399,9 @@ def scan(root: Path, artifacts: list[str]) -> dict[str, Any]:
                     }
                     for finding in result.findings
                 ],
+                "metadata_findings": metadata_findings,
                 "pe_observations": pe_observations(root, path),
+                "pe_metadata_observations": pe_metadata,
                 "elf_observations": elf_observations(root, path),
                 "external_tool_observations": external_tool_observations(root, path),
             }
@@ -305,7 +415,8 @@ def scan(root: Path, artifacts: list[str]) -> dict[str, Any]:
         "avoidable_surface_findings": total_findings,
         "policy_note": (
             "Mandatory executable-container signatures are observed, not treated as removable. "
-            "This gate fails on avoidable product, VM, OLLVM, protected plaintext, and explicit import-resolver markers."
+            "This gate fails on avoidable product, VM, OLLVM, protected plaintext, explicit import-resolver markers, "
+            "printable PE section names, COFF symbol tables, and standard PE section-name string residue."
         ),
         "syscall_policy": {
             "status": "not_implemented_for_evasion",

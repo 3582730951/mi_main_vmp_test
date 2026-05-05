@@ -128,6 +128,30 @@ if ($hits.Count -gt 0) {
   throw "Forbidden marker found in Windows protected release sample: $($hits -join ', ')"
 }
 
+$metadataPath = Join-Path $BuildDir "protected_release_sample.exe.pe_metadata.json"
+@'
+import json
+import pathlib
+import sys
+
+from scripts.audit.surface_minimization_audit import pe_metadata_findings, pe_metadata_observations
+
+artifact = pathlib.Path(sys.argv[1])
+output = pathlib.Path(sys.argv[2])
+observations = pe_metadata_observations(artifact)
+findings = pe_metadata_findings(observations)
+output.write_text(
+    json.dumps({"observations": observations, "findings": findings}, indent=2, sort_keys=True) + "\n",
+    encoding="utf-8",
+)
+if findings:
+    raise SystemExit(f"PE metadata minimization findings: {findings}")
+'@ | python - $exe $metadataPath
+if ($LASTEXITCODE -ne 0) {
+  exit $LASTEXITCODE
+}
+$peMetadata = Get-Content -Raw -Path $metadataPath | ConvertFrom-Json
+
 $githubRunUrl = $null
 if ($env:GITHUB_SERVER_URL -and $env:GITHUB_REPOSITORY -and $env:GITHUB_RUN_ID) {
   $githubRunUrl = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY/actions/runs/$env:GITHUB_RUN_ID"
@@ -158,8 +182,9 @@ $report = [ordered]@{
   artifact_sha256 = (Get-FileHash -Algorithm SHA256 -Path $exe).Hash.ToLowerInvariant()
   behavior_cases_passed = 4
   forbidden_plaintext_hits = $hits
+  pe_metadata = $peMetadata
   scope_note = "Windows runner builds and executes the local protected release sample. This is CI execution evidence when produced by GitHub Actions."
 }
-$report | ConvertTo-Json -Depth 5 | Set-Content -Path $ReportPath -Encoding UTF8
+$report | ConvertTo-Json -Depth 8 | Set-Content -Path $ReportPath -Encoding UTF8
 
 Write-Host "windows protected release passed"

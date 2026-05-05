@@ -62,10 +62,16 @@ import pathlib
 import re
 import sys
 
+from scripts.audit.surface_minimization_audit import pe_metadata_findings, pe_metadata_observations
+
 report = pathlib.Path(sys.argv[1])
 exe = pathlib.Path(sys.argv[2])
 sample = pathlib.Path(sys.argv[3])
 pe_text = pathlib.Path(sys.argv[4]).read_text(encoding="utf-8", errors="ignore")
+pe_metadata = pe_metadata_observations(exe)
+metadata_findings = pe_metadata_findings(pe_metadata)
+if metadata_findings:
+    raise SystemExit(f"PE metadata minimization findings: {metadata_findings}")
 import_dlls = []
 imported_names = []
 export_directory_present = False
@@ -106,6 +112,8 @@ report.write_text(json.dumps({
         "import_dlls": sorted(set(import_dlls)),
         "import_count": len(imported_names),
     },
+    "pe_metadata_observations": pe_metadata,
+    "pe_metadata_findings": metadata_findings,
     "forbidden_plaintext_hits": [],
     "blocking_note": "Generated protected PE artifact is local cross-build evidence only; GitHub Actions Windows execution is still required for hard acceptance.",
 }, indent=2, sort_keys=True) + "\n", encoding="utf-8")
