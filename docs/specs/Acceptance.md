@@ -30,6 +30,7 @@ For final sign-off, run the strict gate instead:
 | Workflow secret references | Scan `.github/workflows/**` when present. Workflows must not reference `passwd.txt`, raw PAT/token/password values, or sensitive environment values outside `${{ secrets.* }}`. |
 | String policy | Protected release artifacts must not contain business-critical strings, API names, JNI names, authorization fields, URLs, or key material in plaintext. Until protected artifacts exist, the gate verifies that the string policy is documented and reports zero scanned artifacts. |
 | Surface minimization | Generate `docs/qa/reports/surface-minimization.json` from release artifacts. The report must show zero avoidable product, VM, OLLVM, protected plaintext, and explicit import-resolver markers. Mandatory PE/ELF/APK container signatures are recorded as observations rather than treated as removable. |
+| Protected callgraph | Generate `docs/qa/reports/protected-callgraph.json` from LLVM IR evidence. The report must show that direct xrefs to protected functions are discovered before replacement, removed after callsite thunking, and that high-frequency callsite optimization preserves the configured defense floor. |
 | Available tests | Verify there is at least one automated QA test under `tests/qa/**`, at least one audit script under `scripts/audit/**`, and runnable test commands are discoverable. |
 | Performance report | Generate `docs/qa/reports/performance-sample.json` from the protected sample benchmark. The report must include baseline/protected runtime, overhead ratio, artifact size, and `defense_priority: true`. |
 
@@ -84,6 +85,10 @@ them would make the platform loader reject the file. The gate fails on avoidable
 markers such as ASCII VM container magic, OLLVM/product names, protected seed or
 business strings, and explicit import-resolver API names in protected release
 artifacts.
+
+When available in the runner, the surface report also records optional LIEF,
+capa, and Rizin/radare2 observations so import/export, capability, and function
+inventory checks can be cross-checked by common open-source analysis tooling.
 
 The syscall policy is intentionally conservative: the project records that
 generic direct-syscall substitution is not implemented for evasion. Required

@@ -20,6 +20,7 @@ class AcceptanceAuditTests(unittest.TestCase):
         self.assertEqual(report["metrics"]["hostile_reports"], 1)
         self.assertEqual(report["metrics"]["release_binary_reports"], 1)
         self.assertEqual(report["metrics"]["surface_reports"], 1)
+        self.assertEqual(report["metrics"]["protected_callgraph_reports"], 1)
 
     def test_audit_does_not_read_passwd(self):
         original_read_bytes = Path.read_bytes

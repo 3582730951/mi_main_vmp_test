@@ -1,6 +1,6 @@
 {
   "avoidable_surface_findings": 0,
-  "generated_at_utc": "2026-05-05T06:48:52.294616Z",
+  "generated_at_utc": "2026-05-05T07:01:35.249354Z",
   "missing_artifacts": [],
   "policy_note": "Mandatory executable-container signatures are observed, not treated as removable. This gate fails on avoidable product, VM, OLLVM, protected plaintext, and explicit import-resolver markers.",
   "scanned_artifacts": [
@@ -15,6 +15,23 @@
         "status": "observed",
         "tool": "readelf"
       },
+      "external_tool_observations": {
+        "capa": {
+          "install_hint": "python3 -m pip install flare-capa",
+          "status": "unavailable",
+          "tool": "capa"
+        },
+        "lief": {
+          "install_hint": "python3 -m pip install lief",
+          "status": "unavailable",
+          "tool": "lief"
+        },
+        "rizin": {
+          "install_hint": "install rizin or radare2",
+          "status": "unavailable",
+          "tool": "rizin/radare2"
+        }
+      },
       "findings": [],
       "mandatory_features": [
         "elf_magic",
@@ -28,6 +45,23 @@
       "artifact": "samples/protected_chain/out/protected_sample.vmp",
       "container": "opaque",
       "elf_observations": {},
+      "external_tool_observations": {
+        "capa": {
+          "reason": "non-executable container",
+          "status": "skipped",
+          "tool": "capa"
+        },
+        "lief": {
+          "install_hint": "python3 -m pip install lief",
+          "status": "unavailable",
+          "tool": "lief"
+        },
+        "rizin": {
+          "reason": "non-executable container",
+          "status": "skipped",
+          "tool": "rizin/radare2"
+        }
+      },
       "findings": [],
       "mandatory_features": [],
       "passed": true,
@@ -37,6 +71,23 @@
       "artifact": "build/windows-protected-cross/protected_release_sample.exe",
       "container": "pe",
       "elf_observations": {},
+      "external_tool_observations": {
+        "capa": {
+          "install_hint": "python3 -m pip install flare-capa",
+          "status": "unavailable",
+          "tool": "capa"
+        },
+        "lief": {
+          "install_hint": "python3 -m pip install lief",
+          "status": "unavailable",
+          "tool": "lief"
+        },
+        "rizin": {
+          "install_hint": "install rizin or radare2",
+          "status": "unavailable",
+          "tool": "rizin/radare2"
+        }
+      },
       "findings": [],
       "mandatory_features": [
         "mz_magic",

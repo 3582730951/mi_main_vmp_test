@@ -800,6 +800,39 @@ def check_surface_minimization_report(root: Path) -> tuple[list[Finding], dict[s
     return findings, {"surface_reports": 1}
 
 
+def check_protected_callgraph_report(root: Path) -> tuple[list[Finding], dict[str, int]]:
+    findings: list[Finding] = []
+    report_path = root / "docs" / "qa" / "reports" / "protected-callgraph.json"
+    if not report_path.exists():
+        return [Finding("protected_callgraph", "docs/qa/reports/protected-callgraph.json", "missing protected callgraph report")], {
+            "protected_callgraph_reports": 0
+        }
+    try:
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        return [Finding("protected_callgraph", report_path.relative_to(root).as_posix(), f"invalid JSON callgraph report: {error}")], {
+            "protected_callgraph_reports": 1
+        }
+    if report.get("schema") != "vmp.qa.protected_callgraph.v1":
+        findings.append(Finding("protected_callgraph", report_path.relative_to(root).as_posix(), "unexpected protected callgraph schema"))
+    if report.get("status") != "pass":
+        findings.append(Finding("protected_callgraph", report_path.relative_to(root).as_posix(), "protected callgraph report did not pass"))
+    analysis = report.get("analysis", {})
+    if not isinstance(analysis, dict):
+        findings.append(Finding("protected_callgraph", report_path.relative_to(root).as_posix(), "missing protected callgraph analysis"))
+    else:
+        for key in (
+            "protected_xrefs_discovered",
+            "direct_protected_xrefs_removed",
+            "high_frequency_policy_applied",
+            "defense_floor_preserved",
+            "per_callsite_thunks_preserved",
+        ):
+            if analysis.get(key) is not True:
+                findings.append(Finding("protected_callgraph", report_path.relative_to(root).as_posix(), f"analysis.{key} must be true"))
+    return findings, {"protected_callgraph_reports": 1}
+
+
 def run_once(root: Path) -> dict[str, object]:
     checks = [
         check_task_coverage,
@@ -812,6 +845,7 @@ def run_once(root: Path) -> dict[str, object]:
         check_hostile_environment_report,
         check_release_binary_report,
         check_surface_minimization_report,
+        check_protected_callgraph_report,
     ]
     findings: list[Finding] = []
     metrics: dict[str, int] = {}

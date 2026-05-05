@@ -17,10 +17,15 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from scripts.audit.github_metadata import current_github_metadata
+from scripts.audit.protected_callgraph_audit import DEFAULT_OUTPUT as CALLGRAPH_REPORT
+from scripts.audit.protected_callgraph_audit import build_report as build_callgraph_report
+from scripts.audit.protected_callgraph_audit import write_json as write_callgraph_json
 
 
 REQUIRED_CAPABILITIES = (
     "automatic_hotspot_analysis",
+    "protected_xref_discovery",
+    "high_frequency_callsite_optimization",
     "defense_floor_preserved",
     "callsite_obfuscation",
     "per_callsite_thunks",
@@ -65,6 +70,14 @@ def read_text(path: Path) -> str:
         return path.read_text(encoding="utf-8", errors="ignore")
     except OSError:
         return ""
+
+
+def read_json(path: Path) -> dict[str, Any]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return data if isinstance(data, dict) else {}
 
 
 def has_tool(name: str) -> bool:
@@ -144,12 +157,22 @@ def analyze_artifact(root: Path, artifact: Path) -> tuple[dict[str, Any], dict[s
 
 def analyze_ir(root: Path) -> tuple[dict[str, bool], dict[str, int], list[dict[str, Any]]]:
     protected_ir = root / "tests/core/.llvm-out/hotspot-callsite.protected.ll"
+    original_ir = root / "tests/core/.llvm-out/hotspot-callsite.ll"
     log = root / "tests/core/.llvm-out/hotspot-callsite.log"
+    config = root / "tests/core/.llvm-out/hotspot-callsite.yml"
+    callgraph_path = root / CALLGRAPH_REPORT
+    if not callgraph_path.exists() and original_ir.exists() and protected_ir.exists() and log.exists() and config.exists():
+        write_callgraph_json(callgraph_path, build_callgraph_report(root, original_ir, protected_ir, log, config))
+    callgraph = read_json(callgraph_path)
+    callgraph_analysis = callgraph.get("analysis", {}) if isinstance(callgraph.get("analysis"), dict) else {}
     ir_text = read_text(protected_ir)
     log_text = read_text(log)
 
     checks = {
         "automatic_hotspot_analysis": "VMPPassPlugin hotspot: function=secret_hot call_sites=3 vm_level=1" in log_text,
+        "protected_xref_discovery": callgraph_analysis.get("protected_xrefs_discovered") is True
+        and callgraph_analysis.get("direct_protected_xrefs_removed") is True,
+        "high_frequency_callsite_optimization": callgraph_analysis.get("high_frequency_policy_applied") is True,
         "defense_floor_preserved": "vm_levels=secret_hot:1" in log_text,
         "callsite_obfuscation": "VMPPassPlugin callsite_obfuscation: rewritten_calls=3" in log_text
         and "call i32 @secret_hot" not in ir_text,
@@ -162,6 +185,8 @@ def analyze_ir(root: Path) -> tuple[dict[str, bool], dict[str, int], list[dict[s
     }
     score = {
         "hotspot_policy_and_defense_floor": 55 if checks["automatic_hotspot_analysis"] and checks["defense_floor_preserved"] else 0,
+        "protected_xref_discovery": 35 if checks["protected_xref_discovery"] else 0,
+        "hot_callsite_speed_policy": 35 if checks["high_frequency_callsite_optimization"] else 0,
         "callsite_graph_distortion": 85 if checks["callsite_obfuscation"] and checks["per_callsite_thunks"] else 0,
         "protected_address_hiding": 45 if checks["protected_function_address_not_materialized"] else 0,
         "decompiler_trap_distortion": 45 if checks["decompiler_traps"] else 0,
@@ -176,6 +201,15 @@ def analyze_ir(root: Path) -> tuple[dict[str, bool], dict[str, int], list[dict[s
             "checks": checks,
         }
     ]
+    if callgraph:
+        tool_results.append(
+            {
+                "tool": "protected-callgraph-audit",
+                "status": callgraph.get("status", "unknown"),
+                "report": CALLGRAPH_REPORT,
+                "analysis": callgraph_analysis,
+            }
+        )
     return checks, score, tool_results
 
 
@@ -228,7 +262,7 @@ def main() -> int:
         "assessment_date": datetime.now(timezone.utc).date().isoformat(),
         "review_tools": [
             name for name in ["readelf", "objdump", "nm", "strings"] if has_tool(name)
-        ] + ["llvm-ir-fixture-scan", "python-shannon-entropy"],
+        ] + ["llvm-ir-fixture-scan", "protected-callgraph-audit", "python-shannon-entropy"],
         "protected_artifact": artifact_info["path"],
         "protected_artifact_sha256": artifact_info["sha256"],
         "minimum_reverse_cost_days": estimated_days,

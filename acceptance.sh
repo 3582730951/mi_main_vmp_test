@@ -61,6 +61,7 @@ done
 
 bash tests/core/run_core_tests.sh
 bash tests/core/run_llvm_plugin_test.sh
+python3 scripts/audit/protected_callgraph_audit.py --root .
 bash tests/integration/run_protected_sample_chain.sh
 bash tests/integration/run_release_protected_binary.sh
 python3 scripts/audit/surface_minimization_audit.py --root .

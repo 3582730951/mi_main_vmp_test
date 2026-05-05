@@ -18,13 +18,17 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y binutils llvm-14-dev llvm-14-tools clang-14
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          python3 -m pip install --user --disable-pip-version-check lief flare-capa || true
 
       - name: Build protection and IR evidence
         run: |
           bash tests/core/run_core_tests.sh
           bash tests/core/run_llvm_plugin_test.sh
+          python3 scripts/audit/protected_callgraph_audit.py --root .
           bash tests/integration/run_protected_sample_chain.sh
           bash tests/integration/run_release_protected_binary.sh
+          python3 scripts/audit/surface_minimization_audit.py --root .
 
       - name: Generate automated reverse-cost assessment
         run: |
@@ -38,6 +42,8 @@ jobs:
           name: reverse-cost-evidence
           path: |
             docs/qa/reports/reverse-cost-assessment.json
+            docs/qa/reports/protected-callgraph.json
+            docs/qa/reports/surface-minimization.json
             tests/core/.llvm-out/hotspot-callsite.log
             tests/core/.llvm-out/hotspot-callsite.protected.ll
             docs/qa/reports/release-protected-binary.json

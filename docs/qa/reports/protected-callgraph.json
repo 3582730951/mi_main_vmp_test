@@ -1,0 +1,57 @@
+{
+  "analysis": {
+    "defense_floor_preserved": true,
+    "direct_protected_xrefs_removed": true,
+    "high_frequency_policy_applied": true,
+    "per_callsite_thunks_preserved": true,
+    "protected_xrefs_discovered": true
+  },
+  "callsite_obfuscation": {
+    "protected_thunk_call_edges": 3,
+    "protected_thunk_targets": [
+      "vmp.call.thunk.4715e1b31f3ea8dc",
+      "vmp.call.thunk.606ed3b32d6b6bc0",
+      "vmp.call.thunk.606ed4b32d6b6d73"
+    ],
+    "rewritten_calls": 3,
+    "unique_thunks": 3
+  },
+  "generated_at_utc": "2026-05-05T07:01:24.639348Z",
+  "hotspot_config": {
+    "call_site_threshold": 2,
+    "defense_floor": 1,
+    "enabled": true,
+    "hot_vm_level": 1,
+    "preserve_explicit_vm_level": true
+  },
+  "policy_note": "The audit intentionally uses compiler IR evidence for authorized protector QA. It detects direct protected-function xrefs before replacement, verifies their removal after thunking, and checks that hot-callsite speed policy never drops below the configured defense floor.",
+  "protected_functions": [
+    {
+      "hidden_visibility": true,
+      "hotspot": {
+        "applied": true,
+        "call_sites": 3,
+        "defense_floor": 1,
+        "speed_policy_without_defense_drop": true,
+        "vm_level": 1
+      },
+      "name": "secret_hot",
+      "original_direct_callers": {
+        "caller_a": 2,
+        "caller_b": 1
+      },
+      "original_direct_callsite_count": 3,
+      "protected_direct_callers": {},
+      "protected_direct_callsite_count": 0,
+      "replaced": true
+    }
+  ],
+  "schema": "vmp.qa.protected_callgraph.v1",
+  "source": {
+    "config": "tests/core/.llvm-out/hotspot-callsite.yml",
+    "log": "tests/core/.llvm-out/hotspot-callsite.log",
+    "original_ir": "tests/core/.llvm-out/hotspot-callsite.ll",
+    "protected_ir": "tests/core/.llvm-out/hotspot-callsite.protected.ll"
+  },
+  "status": "pass"
+}

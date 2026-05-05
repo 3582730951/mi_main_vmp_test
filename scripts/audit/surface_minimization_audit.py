@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
+import shutil
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -37,6 +39,146 @@ def run_tool(args: list[str], cwd: Path) -> tuple[int, str]:
     except (OSError, subprocess.TimeoutExpired) as error:
         return 127, str(error)
     return completed.returncode, completed.stdout
+
+
+def has_tool(name: str) -> bool:
+    return shutil.which(name) is not None
+
+
+def _as_sequence(value: Any) -> list[Any]:
+    if callable(value):
+        try:
+            value = value()
+        except TypeError:
+            return []
+    if value is None:
+        return []
+    if isinstance(value, (str, bytes)):
+        return [value]
+    try:
+        return list(value)
+    except TypeError:
+        return []
+
+
+def _names(value: Any, limit: int = 40) -> list[str]:
+    names = []
+    for item in _as_sequence(value):
+        name = getattr(item, "name", item)
+        if callable(name):
+            try:
+                name = name()
+            except TypeError:
+                name = str(item)
+        if name is None:
+            continue
+        text = str(name)
+        if text:
+            names.append(text)
+    return sorted(set(names))[:limit]
+
+
+def lief_observations(artifact: Path) -> dict[str, Any]:
+    if importlib.util.find_spec("lief") is None:
+        return {
+            "tool": "lief",
+            "status": "unavailable",
+            "install_hint": "python3 -m pip install lief",
+        }
+    try:
+        import lief  # type: ignore[import-not-found]
+    except Exception as error:
+        return {"tool": "lief", "status": "unavailable", "detail": str(error)[:200]}
+    try:
+        binary = lief.parse(str(artifact))
+    except Exception as error:
+        return {"tool": "lief", "status": "error", "detail": str(error)[:200]}
+    if binary is None:
+        return {"tool": "lief", "status": "unsupported_format"}
+    imported_functions = _names(getattr(binary, "imported_functions", []))
+    exported_functions = _names(getattr(binary, "exported_functions", []))
+    libraries = _names(getattr(binary, "libraries", []))
+    sections = _names(getattr(binary, "sections", []), limit=80)
+    return {
+        "tool": "lief",
+        "status": "observed",
+        "format": str(getattr(binary, "format", "unknown")),
+        "entrypoint": getattr(binary, "entrypoint", None),
+        "import_count": len(imported_functions),
+        "export_count": len(exported_functions),
+        "library_count": len(libraries),
+        "section_count": len(sections),
+        "imported_functions_sample": imported_functions[:20],
+        "exported_functions_sample": exported_functions[:20],
+        "libraries": libraries,
+        "sections_sample": sections[:30],
+        "has_tls": bool(getattr(binary, "has_tls", False)),
+    }
+
+
+def capa_observations(root: Path, artifact: Path) -> dict[str, Any]:
+    if not has_tool("capa"):
+        return {
+            "tool": "capa",
+            "status": "unavailable",
+            "install_hint": "python3 -m pip install flare-capa",
+        }
+    code, output = run_tool(["capa", "-j", str(artifact)], root)
+    if code != 0:
+        return {"tool": "capa", "status": "error", "detail": output.strip()[:300]}
+    try:
+        data = json.loads(output)
+    except json.JSONDecodeError as error:
+        return {"tool": "capa", "status": "error", "detail": f"invalid JSON: {error}"}
+    rules = data.get("rules", {}) if isinstance(data, dict) else {}
+    rule_names = sorted(str(name) for name in rules.keys()) if isinstance(rules, dict) else []
+    return {
+        "tool": "capa",
+        "status": "observed",
+        "rule_count": len(rule_names),
+        "rules_sample": rule_names[:30],
+    }
+
+
+def rizin_observations(root: Path, artifact: Path) -> dict[str, Any]:
+    tool = next((name for name in ("rizin", "r2", "radare2") if has_tool(name)), None)
+    if tool is None:
+        return {
+            "tool": "rizin/radare2",
+            "status": "unavailable",
+            "install_hint": "install rizin or radare2",
+        }
+    code, output = run_tool([tool, "-q", "-2", "-A", "-c", "aflj", "-c", "q", str(artifact)], root)
+    if code != 0:
+        return {"tool": tool, "status": "error", "detail": output.strip()[:300]}
+    try:
+        functions = json.loads(output) if output.strip() else []
+    except json.JSONDecodeError as error:
+        return {"tool": tool, "status": "error", "detail": f"invalid JSON: {error}"}
+    if not isinstance(functions, list):
+        functions = []
+    named = [str(item.get("name", "")) for item in functions if isinstance(item, dict) and item.get("name")]
+    return {
+        "tool": tool,
+        "status": "observed",
+        "function_count": len(functions),
+        "functions_sample": sorted(named)[:30],
+    }
+
+
+def external_tool_observations(root: Path, artifact: Path) -> dict[str, Any]:
+    container = artifact.read_bytes()[:4]
+    binary_like = container.startswith(b"\x7fELF") or container.startswith(b"MZ")
+    observations: dict[str, Any] = {
+        "lief": lief_observations(artifact),
+    }
+    if binary_like:
+        observations["capa"] = capa_observations(root, artifact)
+        observations["rizin"] = rizin_observations(root, artifact)
+    else:
+        observations["capa"] = {"tool": "capa", "status": "skipped", "reason": "non-executable container"}
+        observations["rizin"] = {"tool": "rizin/radare2", "status": "skipped", "reason": "non-executable container"}
+    return observations
 
 
 def pe_observations(root: Path, artifact: Path) -> dict[str, Any]:
@@ -138,6 +280,7 @@ def scan(root: Path, artifacts: list[str]) -> dict[str, Any]:
                 ],
                 "pe_observations": pe_observations(root, path),
                 "elf_observations": elf_observations(root, path),
+                "external_tool_observations": external_tool_observations(root, path),
             }
         )
     return {

@@ -17,6 +17,8 @@ def valid_report() -> dict:
         "minimum_reverse_cost_days": 365,
         "assessed_capabilities": {
             "automatic_hotspot_analysis": True,
+            "protected_xref_discovery": True,
+            "high_frequency_callsite_optimization": True,
             "defense_floor_preserved": True,
             "callsite_obfuscation": True,
             "per_callsite_thunks": True,

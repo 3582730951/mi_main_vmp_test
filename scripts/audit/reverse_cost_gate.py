@@ -17,6 +17,8 @@ SCHEMA = "vmp.qa.reverse_cost_assessment.v1"
 MINIMUM_REVERSE_COST_DAYS = 365
 REQUIRED_CAPABILITIES = (
     "automatic_hotspot_analysis",
+    "protected_xref_discovery",
+    "high_frequency_callsite_optimization",
     "defense_floor_preserved",
     "callsite_obfuscation",
     "per_callsite_thunks",
