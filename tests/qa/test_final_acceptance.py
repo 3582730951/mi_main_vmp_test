@@ -24,6 +24,9 @@ class FinalAcceptanceTests(unittest.TestCase):
         reverse_cost = root / "scripts/audit/reverse_cost_gate.py"
         reverse_cost.write_text("#!/usr/bin/env python3\nimport sys\nsys.exit(0)\n", encoding="utf-8")
         os.chmod(reverse_cost, 0o755)
+        finalize = root / "scripts/audit/finalize_external_evidence.py"
+        finalize.write_text("#!/usr/bin/env python3\nimport sys\nsys.exit(0)\n", encoding="utf-8")
+        os.chmod(finalize, 0o755)
         return root
 
     def run_final(self, root: Path) -> subprocess.CompletedProcess:

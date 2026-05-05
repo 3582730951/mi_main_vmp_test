@@ -8,6 +8,11 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
+try:
+    from .reverse_cost_gate import current_git_sha, validate_report
+except ImportError:  # pragma: no cover - script execution path
+    from reverse_cost_gate import current_git_sha, validate_report
+
 
 def read_json(path: Path) -> dict[str, object]:
     return json.loads(path.read_text(encoding="utf-8"))
@@ -26,6 +31,15 @@ def require_report(root: Path, relative_path: str) -> dict[str, object]:
     if data.get("status") not in {"pass", "provisional"}:
         raise RuntimeError(f"{relative_path} is not pass/provisional")
     return data
+
+
+def require_reverse_cost_report(root: Path) -> dict[str, object]:
+    relative_path = "docs/qa/reports/reverse-cost-assessment.json"
+    report = require_report(root, relative_path)
+    errors = validate_report(report, current_git_sha(root))
+    if errors:
+        raise RuntimeError(f"{relative_path} failed validation: {'; '.join(errors)}")
+    return report
 
 
 def write_hostile_environment(root: Path) -> None:
@@ -73,10 +87,12 @@ def write_final_signoff(root: Path) -> None:
         "docs/qa/reports/ida-ollydbg-github-actions-verification.json",
         "docs/qa/reports/vmprotect-tier-github-actions-verification.json",
         "docs/qa/reports/hostile-environment.json",
+        "docs/qa/reports/reverse-cost-assessment.json",
     ]
     for relative_path in evidence:
         if not (root / relative_path).exists():
             raise FileNotFoundError(relative_path)
+    require_reverse_cost_report(root)
     lines = [
         "# Final Sign-Off",
         "",
@@ -93,6 +109,7 @@ def write_final_signoff(root: Path) -> None:
         "| IDA/OllyDbg review | `docs/qa/reports/ida-ollydbg-github-actions-verification.json` |",
         "| VMProtect-tier review | `docs/qa/reports/vmprotect-tier-github-actions-verification.json` |",
         "| Aggregate hostile environment | `docs/qa/reports/hostile-environment.json` |",
+        "| Reverse-cost assessment | `docs/qa/reports/reverse-cost-assessment.json` |",
         "",
         "Open vulnerabilities: 0",
         "Open findings: 0",

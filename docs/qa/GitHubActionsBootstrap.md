@@ -52,6 +52,7 @@ After the push, run these workflows from a protected branch using
 - `.github/workflows/platform-android-plan.yml`
 - `.github/workflows/vmprotect-tier.yml`
 - `.github/workflows/manual-review.yml`
+- `.github/workflows/reverse-cost.yml`
 
 The strict audit requires completed successful non-`pull_request` runs and
 artifact-backed verification sidecars. Local JSON files alone are not accepted.
@@ -76,6 +77,7 @@ Download and preserve the workflow artifacts containing these reports:
 - `docs/qa/reports/production-crypto-key-management.json`
 - `docs/qa/reports/vmprotect-tier-review.json`
 - `docs/qa/reports/vmprotect-tier-github-actions-verification.json`
+- `docs/qa/reports/reverse-cost-assessment.json`
 
 Then rerun:
 

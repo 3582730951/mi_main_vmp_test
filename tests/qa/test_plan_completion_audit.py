@@ -327,10 +327,12 @@ class PlanCompletionAuditTests(unittest.TestCase):
         self.assertIn("generated artifact/report evidence", "; ".join(result.notes))
 
     def test_ida_ollydbg_hard_acceptance_blocks_without_manual_review(self):
-        [result] = plan_completion_audit.hard_acceptance_results(
-            ROOT,
-            [("IDA/OllyDbg", "automated indicators and human reverse-engineering review must pass")],
-        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            [result] = plan_completion_audit.hard_acceptance_results(
+                root,
+                [("IDA/OllyDbg", "automated indicators and human reverse-engineering review must pass")],
+            )
 
         self.assertEqual(result.status, "blocker")
         self.assertIn("manual reverse-engineering review", "; ".join(result.notes))

@@ -76,4 +76,5 @@ done
 restore_all
 
 python3 scripts/audit/reverse_cost_gate.py --root .
+python3 scripts/audit/finalize_external_evidence.py --root .
 python3 scripts/audit/plan_completion_audit.py --root . --write-doc --json

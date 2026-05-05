@@ -23,6 +23,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
 
+try:
+    from .reverse_cost_gate import current_git_sha, validate_report as validate_reverse_cost_report
+except ImportError:  # pragma: no cover - script execution path
+    from reverse_cost_gate import current_git_sha, validate_report as validate_reverse_cost_report
+
 
 TASK_RE = re.compile(r"^T\d{3}$")
 BACKTICK_RE = re.compile(r"`([^`]+)`")
@@ -707,7 +712,15 @@ def final_signoff_evidence_exists(root: Path) -> bool:
         and hostile_full_coverage_exists(root)
         and vmprotect_tier_evidence_exists(root)
         and ida_ollydbg_manual_review_evidence_exists(root)
+        and reverse_cost_evidence_exists(root)
     )
+
+
+def reverse_cost_evidence_exists(root: Path) -> bool:
+    report = read_json_report(root, "docs/qa/reports/reverse-cost-assessment.json")
+    if not report:
+        return False
+    return validate_reverse_cost_report(report, current_git_sha(root)) == []
 
 
 def ci_runner_evidence_exists(root: Path) -> bool:

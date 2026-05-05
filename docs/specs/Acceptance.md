@@ -18,7 +18,7 @@ For final sign-off, run the strict gate instead:
 ./final_acceptance.sh
 ```
 
-`final_acceptance.sh` preserves imported external evidence reports, runs the local gate, restores those reports, and then runs `scripts/audit/plan_completion_audit.py --root . --write-doc --json`. It must fail while Windows/Android GitHub Actions evidence, VMProtect-tier sidecars, and manual reverse-engineering evidence are absent. When external GitHub evidence is imported, the strict audit needs `GITHUB_TOKEN` so it can recheck verification sidecars against the live GitHub Actions API.
+`final_acceptance.sh` preserves imported external evidence reports, runs the local gate, restores those reports, runs `scripts/audit/reverse_cost_gate.py --root .`, regenerates `docs/qa/FinalSignOff.md` with `scripts/audit/finalize_external_evidence.py --root .`, and then runs `scripts/audit/plan_completion_audit.py --root . --write-doc --json`. It must fail while Windows/Android GitHub Actions evidence, VMProtect-tier sidecars, manual reverse-engineering evidence, or the commit-bound reverse-cost assessment are absent. When external GitHub evidence is imported, the strict audit needs `GITHUB_TOKEN` so it can recheck verification sidecars against the live GitHub Actions API.
 
 ## Automated Checks
 
