@@ -413,12 +413,20 @@ class PlanCompletionAuditTests(unittest.TestCase):
                 "ci_execution": True,
                 **github_metadata("platform-android"),
                 "release_signing_secret_used": True,
-                "signing_key_scope": "github_secret_keystore",
+                "signing_key_scope": "github_secret_private_key_neutral_certificate",
+                "artifacts": [
+                    {"path": "build/android-x86_64/libmi_platform.so"},
+                    {"path": "build/android-x86_64/libmi_bridge.so"},
+                    {"path": "build/android-arm64-v8a/libmi_platform.so"},
+                    {"path": "build/android-arm64-v8a/libmi_bridge.so"},
+                    {"path": "build/android-apk-smoke/mi-smoke.apk"},
+                ],
                 "manifest_debuggable": False,
                 "protected_payload_embedded_in_jni": True,
                 "protected_sample_asset_packaged": False,
                 "apk_forbidden_plaintext_hits": [],
                 "jni_symbol_plaintext_hits": [],
+                "native_elf_metadata_findings": [],
                 "core_logic_consistent": True,
             }
             write_json(root / "docs/qa/reports/android-apk-smoke.json", report)
@@ -450,6 +458,12 @@ class PlanCompletionAuditTests(unittest.TestCase):
 
             self.assertFalse(plan_completion_audit.android_release_strength_evidence_exists(root))
 
+            report["release_signing_secret_used"] = True
+            report["artifacts"][0]["path"] = "build/android-x86_64/libvmp_platform.so"
+            write_json(root / "docs/qa/reports/android-apk-smoke.json", report)
+
+            self.assertFalse(plan_completion_audit.android_release_strength_evidence_exists(root))
+
     def test_android_release_strength_gate_rejects_wrong_workflow(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -459,12 +473,20 @@ class PlanCompletionAuditTests(unittest.TestCase):
                 "ci_execution": True,
                 **github_metadata("unrelated-workflow"),
                 "release_signing_secret_used": True,
-                "signing_key_scope": "github_secret_keystore",
+                "signing_key_scope": "github_secret_private_key_neutral_certificate",
+                "artifacts": [
+                    {"path": "build/android-x86_64/libmi_platform.so"},
+                    {"path": "build/android-x86_64/libmi_bridge.so"},
+                    {"path": "build/android-arm64-v8a/libmi_platform.so"},
+                    {"path": "build/android-arm64-v8a/libmi_bridge.so"},
+                    {"path": "build/android-apk-smoke/mi-smoke.apk"},
+                ],
                 "manifest_debuggable": False,
                 "protected_payload_embedded_in_jni": True,
                 "protected_sample_asset_packaged": False,
                 "apk_forbidden_plaintext_hits": [],
                 "jni_symbol_plaintext_hits": [],
+                "native_elf_metadata_findings": [],
                 "core_logic_consistent": True,
             }
             write_json(root / "docs/qa/reports/android-apk-smoke.json", report)

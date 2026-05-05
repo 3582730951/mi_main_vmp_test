@@ -93,7 +93,7 @@ The strict completion audit expects Android release-strength evidence to include
   `github_ref`, `github_ref_name`, and `github_ref_protected`;
 - `github_workflow: "platform-android"`;
 - `release_signing_secret_used: true`;
-- `signing_key_scope: "github_secret_keystore"`;
+- `signing_key_scope: "github_secret_private_key_neutral_certificate"`;
 - `manifest_debuggable: false`;
 - `protected_payload_embedded_in_jni: true`;
 - `protected_sample_asset_packaged: false`;

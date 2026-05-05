@@ -430,6 +430,20 @@ def android_native_so_smoke_evidence_exists(root: Path) -> bool:
     )
 
 
+def android_artifact_paths_are_neutral(report: dict[str, object]) -> bool:
+    artifacts = report.get("artifacts")
+    if not isinstance(artifacts, list) or not artifacts:
+        return False
+    forbidden_fragments = ("vmp_platform", "vmp_smoke", "libvmp", "vmp-smoke", "com.vmp", "com/vmp", "VMP")
+    for artifact in artifacts:
+        if not isinstance(artifact, dict):
+            return False
+        path = str(artifact.get("path", ""))
+        if not path or any(fragment in path for fragment in forbidden_fragments):
+            return False
+    return True
+
+
 def android_release_strength_evidence_exists(root: Path) -> bool:
     report = read_json_report(root, "docs/qa/reports/android-apk-smoke.json")
     so_report = read_json_report(root, "docs/qa/reports/android-emulator-smoke.json")
@@ -452,12 +466,14 @@ def android_release_strength_evidence_exists(root: Path) -> bool:
         and report.get("github_workflow") == "platform-android"
         and so_report.get("github_workflow") == "platform-android"
         and report.get("release_signing_secret_used") is True
-        and report.get("signing_key_scope") == "github_secret_keystore"
+        and report.get("signing_key_scope") == "github_secret_private_key_neutral_certificate"
+        and android_artifact_paths_are_neutral(report)
         and report.get("manifest_debuggable") is False
         and report.get("protected_payload_embedded_in_jni") is True
         and report.get("protected_sample_asset_packaged") is False
         and report.get("apk_forbidden_plaintext_hits") == []
         and report.get("jni_symbol_plaintext_hits") == []
+        and report.get("native_elf_metadata_findings") == []
         and report.get("core_logic_consistent") is True
         and so_report.get("emulator_execution") is True
         and so_report.get("protected_so_loaded") is True
