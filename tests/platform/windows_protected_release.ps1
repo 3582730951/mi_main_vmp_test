@@ -73,7 +73,15 @@ $exe = Join-Path $BuildDir "protected_release_sample.exe"
 if (Get-Command cl.exe -ErrorAction SilentlyContinue) {
   & cl.exe /nologo /std:c++17 /O2 /GS- /GR- /DVMP_DISABLE_RUNTIME_ENTRY_EXPORTS=1 /DVMP_FREESTANDING_WINDOWS_ENTRY=1 /Gy /Gw /I $BuildDir /I src $sourceList /link /NODEFAULTLIB kernel32.lib /ENTRY:mainCRTStartup /SUBSYSTEM:CONSOLE /OPT:REF /OPT:ICF /OUT:$exe
 } elseif (Get-Command g++ -ErrorAction SilentlyContinue) {
-  & g++ -std=c++17 -O2 -DVMP_DISABLE_RUNTIME_ENTRY_EXPORTS=1 -DVMP_FREESTANDING_WINDOWS_ENTRY=1 -fno-exceptions -fno-rtti -fno-stack-protector -fno-asynchronous-unwind-tables -fno-unwind-tables -mno-stack-arg-probe -fvisibility=hidden -fdata-sections -ffunction-sections -I $BuildDir -I src $sourceList -nostdlib -nostartfiles -Wl,--gc-sections -Wl,-e,mainCRTStartup -lkernel32 -o $exe
+  $gppArgs = @(
+    "-std=c++17", "-O2", "-DVMP_DISABLE_RUNTIME_ENTRY_EXPORTS=1", "-DVMP_FREESTANDING_WINDOWS_ENTRY=1",
+    "-fno-exceptions", "-fno-rtti", "-fno-stack-protector", "-fno-asynchronous-unwind-tables", "-fno-unwind-tables",
+    "-mno-stack-arg-probe", "-fvisibility=hidden", "-fdata-sections", "-ffunction-sections",
+    "-I", $BuildDir, "-I", "src"
+  ) + $sourceList + @(
+    "-nostdlib", "-nostartfiles", "-Wl,--gc-sections", "-Wl,-e,mainCRTStartup", "-lkernel32", "-o", $exe
+  )
+  & g++ @gppArgs
 } else {
   throw "No supported Windows C++ compiler found"
 }
