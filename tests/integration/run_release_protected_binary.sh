@@ -36,10 +36,43 @@ c++ -std=c++17 -O2 -DVMP_DISABLE_RUNTIME_ENTRY_EXPORTS=1 -DVMP_FREESTANDING_LINU
   -fvisibility=hidden -fdata-sections -ffunction-sections \
   -I"${BUILD_DIR}" -I"${ROOT_DIR}/src" \
   "${ROOT_DIR}/tools/vmp/protected_release_main.cpp" \
-  -nostdlib -nostartfiles -static -no-pie -Wl,--gc-sections -Wl,-e,_start \
+  -nostdlib -nostartfiles -static -no-pie -Wl,--build-id=none -Wl,--gc-sections -Wl,-e,_start \
   -o "${BINARY_PATH}"
 
 strip --strip-all "${BINARY_PATH}" 2>/dev/null || true
+python3 - "${BINARY_PATH}" <<'PY'
+import struct
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+data = bytearray(path.read_bytes())
+if data[:4] != b"\x7fELF" or data[4] != 2 or data[5] != 1:
+    raise SystemExit("expected little-endian ELF64 release artifact")
+
+e_phoff = struct.unpack_from("<Q", data, 32)[0]
+e_shoff = struct.unpack_from("<Q", data, 40)[0]
+e_phentsize = struct.unpack_from("<H", data, 54)[0]
+e_phnum = struct.unpack_from("<H", data, 56)[0]
+loaded_end = 0
+for index in range(e_phnum):
+    offset = e_phoff + index * e_phentsize
+    p_type = struct.unpack_from("<I", data, offset)[0]
+    if p_type != 1:
+        continue
+    p_offset = struct.unpack_from("<Q", data, offset + 8)[0]
+    p_filesz = struct.unpack_from("<Q", data, offset + 32)[0]
+    loaded_end = max(loaded_end, p_offset + p_filesz)
+if loaded_end == 0 or (e_shoff and loaded_end > e_shoff):
+    raise SystemExit("unexpected ELF load/section layout")
+
+struct.pack_into("<Q", data, 40, 0)
+struct.pack_into("<H", data, 58, 0)
+struct.pack_into("<H", data, 60, 0)
+struct.pack_into("<H", data, 62, 0)
+del data[loaded_end:]
+path.write_bytes(data)
+PY
 
 "${BINARY_PATH}" >/tmp/vmp-release-protected-output.txt
 
