@@ -132,6 +132,21 @@ data = {
     ],
     "ci_execution": os.environ.get("GITHUB_ACTIONS") == "true",
     "github_actions": os.environ.get("GITHUB_ACTIONS") == "true",
+    "github_run_id": os.environ.get("GITHUB_RUN_ID"),
+    "github_run_attempt": os.environ.get("GITHUB_RUN_ATTEMPT"),
+    "github_workflow": os.environ.get("GITHUB_WORKFLOW"),
+    "github_repository": os.environ.get("GITHUB_REPOSITORY"),
+    "github_sha": os.environ.get("GITHUB_SHA"),
+    "github_event_name": os.environ.get("GITHUB_EVENT_NAME"),
+    "github_ref": os.environ.get("GITHUB_REF"),
+    "github_ref_name": os.environ.get("GITHUB_REF_NAME"),
+    "github_ref_protected": os.environ.get("GITHUB_REF_PROTECTED"),
+    "github_job": os.environ.get("GITHUB_JOB"),
+    "github_run_url": (
+        f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+        if os.environ.get("GITHUB_SERVER_URL") and os.environ.get("GITHUB_REPOSITORY") and os.environ.get("GITHUB_RUN_ID")
+        else None
+    ),
     "runner_os": os.environ.get("RUNNER_OS"),
     "runner_name": os.environ.get("RUNNER_NAME"),
     "emulator_execution": smoke_status == 0,
