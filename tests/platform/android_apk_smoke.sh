@@ -112,6 +112,14 @@ build_jni_abi() {
 build_jni_abi x86_64-linux-android build/android-x86_64
 build_jni_abi aarch64-linux-android build/android-arm64-v8a
 
+for native_lib in \
+  build/android-x86_64/libvmp_platform.so \
+  build/android-x86_64/libvmp_smoke_jni.so \
+  build/android-arm64-v8a/libvmp_platform.so \
+  build/android-arm64-v8a/libvmp_smoke_jni.so; do
+  python3 scripts/audit/scrub_elf_section_metadata.py "$native_lib"
+done
+
 apk_root="build/android-apk-smoke"
 package_name="com.vmp.smoke"
 activity_name="ProtectedSmokeActivity"
@@ -271,6 +279,8 @@ import pathlib
 import sys
 import zipfile
 
+from scripts.audit.surface_minimization_audit import elf_metadata_findings, elf_metadata_observations
+
 report = pathlib.Path(sys.argv[1])
 read_status = int(sys.argv[2])
 result_text = sys.argv[3]
@@ -297,9 +307,27 @@ artifacts = [
 protected_sample_ok = "protected_cases=4" in result_text
 jni_hits = []
 forbidden_apk_hits = []
+native_elf_metadata = []
+native_elf_metadata_findings = []
+native_elf_metadata_observed_findings = []
 for path in artifacts:
     if path.suffix == ".so":
         data = path.read_bytes()
+        metadata_observations = elf_metadata_observations(path)
+        observed_findings = elf_metadata_findings(metadata_observations)
+        metadata_findings = [
+            finding for finding in observed_findings if finding["category"] == "elf_section_header_table"
+        ]
+        native_elf_metadata.append({
+            "path": str(path),
+            "observations": metadata_observations,
+            "findings": metadata_findings,
+            "observed_findings": observed_findings,
+        })
+        for finding in metadata_findings:
+            native_elf_metadata_findings.append({"path": str(path), **finding})
+        for finding in observed_findings:
+            native_elf_metadata_observed_findings.append({"path": str(path), **finding})
         for marker in (
             b"Java_",
             b"nativeProtectedAdd",
@@ -346,6 +374,7 @@ status_ok = (
     and platform_ok
     and protected_sample_ok
     and not jni_hits
+    and not native_elf_metadata_findings
     and not forbidden_apk_hits
     and not protected_asset_packaged
 )
@@ -360,6 +389,8 @@ elif not protected_sample_ok:
     blocking_note = "Protected sample VM artifact did not pass all APK/JNI behavior cases."
 elif jni_hits:
     blocking_note = "JNI plaintext export markers remained in native libraries."
+elif native_elf_metadata_findings:
+    blocking_note = "Native ELF section metadata remained in packaged Android libraries."
 elif forbidden_apk_hits:
     blocking_note = "Forbidden plaintext markers remained in the signed APK."
 elif protected_asset_packaged:
@@ -404,6 +435,9 @@ data = {
     "protected_sample_asset_packaged": protected_asset_packaged,
     "jni_static_registration": True,
     "jni_symbol_plaintext_hits": jni_hits,
+    "native_elf_metadata": native_elf_metadata,
+    "native_elf_metadata_findings": native_elf_metadata_findings,
+    "native_elf_metadata_observed_findings": native_elf_metadata_observed_findings,
     "logcat_result_observed": read_status == 0,
     "manifest_debuggable": False,
     "release_claim": release_signing_secret_used,
