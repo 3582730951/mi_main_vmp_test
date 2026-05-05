@@ -4,7 +4,7 @@ set -euo pipefail
 sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/opt/android-sdk}}"
 api_level="${ANDROID_API_LEVEL:-35}"
 system_image="${ANDROID_SYSTEM_IMAGE:-system-images;android-${api_level};default;x86_64}"
-avd_name="${ANDROID_AVD_NAME:-vmp_api${api_level}_x86_64}"
+avd_name="${ANDROID_AVD_NAME:-mi_api${api_level}_x86_64}"
 ndk_version="${ANDROID_NDK_VERSION:-26.3.11579264}"
 build_tools_version="${ANDROID_BUILD_TOOLS_VERSION:-35.0.1}"
 emulator_log="${ANDROID_EMULATOR_LOG:-build/android-emulator.log}"

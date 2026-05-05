@@ -500,8 +500,8 @@ class PlanCompletionAuditTests(unittest.TestCase):
                 "smoke_exe_executed": True,
                 "dll_load_executed": True,
                 "artifacts": [
-                    {"kind": "exe", "bytes": 1024, "path": "build/windows/vmp_platform_smoke.exe", "sha256": "b" * 64},
-                    {"kind": "dll", "bytes": 2048, "path": "build/windows/vmp_platform.dll", "sha256": "c" * 64},
+                    {"kind": "exe", "bytes": 1024, "path": "build/windows/mi_platform_smoke.exe", "sha256": "b" * 64},
+                    {"kind": "dll", "bytes": 2048, "path": "build/windows/mi_platform.dll", "sha256": "c" * 64},
                 ],
             }
             protected = {

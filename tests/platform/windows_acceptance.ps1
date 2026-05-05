@@ -10,16 +10,16 @@ New-Item -ItemType Directory -Force -Path (Split-Path $ReportPath) | Out-Null
 cmake -S src/platform -B $BuildDir -DPLATFORM_ADAPTER_TARGET=windows -DCMAKE_BUILD_TYPE=Release
 cmake --build $BuildDir --config Release
 
-$exe = Join-Path $BuildDir "Release/vmp_platform_smoke.exe"
+$exe = Join-Path $BuildDir "Release/mi_platform_smoke.exe"
 if (!(Test-Path $exe)) {
-  $exe = Join-Path $BuildDir "vmp_platform_smoke.exe"
+  $exe = Join-Path $BuildDir "mi_platform_smoke.exe"
 }
 & $exe
 if ($LASTEXITCODE -ne 0) {
   exit $LASTEXITCODE
 }
 
-$dll = Get-ChildItem $BuildDir -Recurse -Filter "vmp_platform*.dll" | Select-Object -First 1
+$dll = Get-ChildItem $BuildDir -Recurse -Filter "mi_platform*.dll" | Select-Object -First 1
 if ($null -eq $dll) {
   throw "Windows DLL artifact was not produced"
 }

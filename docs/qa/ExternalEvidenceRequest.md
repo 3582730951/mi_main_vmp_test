@@ -79,8 +79,8 @@ Preserve these reports/artifacts:
 - `docs/qa/reports/android-github-actions-verification.json`
 - `docs/qa/reports/android-hostile-triggers.json`
 - `docs/qa/reports/android-hostile-github-actions-verification.json`
-- `build/android-apk-smoke/vmp-smoke.apk`
-- packaged `libvmp_platform.so` and `libvmp_smoke_jni.so` for `x86_64` and `arm64-v8a`
+- `build/android-apk-smoke/mi-smoke.apk`
+- packaged `libmi_platform.so` and `libmi_bridge.so` for `x86_64` and `arm64-v8a`
 
 The strict completion audit expects Android release-strength evidence to include:
 

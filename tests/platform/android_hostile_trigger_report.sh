@@ -108,7 +108,7 @@ XML
     -keyalg RSA \
     -keysize 2048 \
     -validity 10000 \
-    -dname "CN=Authorized Hostile Marker,O=VMP,C=US" >/dev/null
+    -dname "CN=Authorized Hostile Marker,O=Release,C=US" >/dev/null
   apksigner sign \
     --ks "$keystore" \
     --ks-key-alias marker \

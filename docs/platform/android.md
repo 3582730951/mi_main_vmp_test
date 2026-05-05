@@ -15,7 +15,7 @@
 1. Build native libraries with the Android NDK CMake toolchain for `arm64-v8a` and `x86_64`.
 2. Package protected libraries into the APK under `lib/<abi>/`.
 3. Boot an x86_64 emulator on CI or a self-hosted runner.
-4. Install the APK, run JNI smoke tests, and compare protected/unprotected core logic outputs. The current smoke APK embeds the generated protected VM payload inside `libvmp_smoke_jni.so` instead of loading it as an APK asset.
+4. Install the APK, run JNI smoke tests, and compare protected/unprotected core logic outputs. The current smoke APK embeds the generated protected VM payload inside `libmi_bridge.so` instead of loading it as an APK asset.
 5. Run hostile-environment checks for root, XP-family frameworks, and hook tooling in a separate job profile.
 
 The Android hostile report is allowed to pass only when the same authorized hostile test device or image produces all required trigger classes under CI with `ANDROID_HOSTILE_PROFILE_AUTHORIZED=true` and a non-empty `ANDROID_HOSTILE_PROFILE_ID`:

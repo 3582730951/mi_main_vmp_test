@@ -18,13 +18,13 @@ fi
 
 mkdir -p "$build_dir" "$(dirname "$report_path")"
 
-dll="$build_dir/vmp_platform.dll"
-exe="$build_dir/vmp_platform_smoke.exe"
+dll="$build_dir/mi_platform.dll"
+exe="$build_dir/mi_platform_smoke.exe"
 
 "$cc" -O2 -shared \
   -I src/platform \
   src/platform/platform_common.c src/platform/windows/windows_adapter.c \
-  -Wl,--out-implib,"$build_dir/libvmp_platform.dll.a" \
+  -Wl,--out-implib,"$build_dir/libmi_platform.dll.a" \
   -o "$dll"
 
 "$cc" -O2 \
@@ -34,15 +34,15 @@ exe="$build_dir/vmp_platform_smoke.exe"
 
 "$objdump" -f "$dll" | grep -q 'pei-x86-64'
 "$objdump" -f "$exe" | grep -q 'pei-x86-64'
-"$objdump" -p "$dll" >"$build_dir/vmp_platform.dll.pe.txt"
-"$objdump" -p "$exe" >"$build_dir/vmp_platform_smoke.exe.pe.txt"
+"$objdump" -p "$dll" >"$build_dir/mi_platform.dll.pe.txt"
+"$objdump" -p "$exe" >"$build_dir/mi_platform_smoke.exe.pe.txt"
 
 for artifact in "$dll" "$exe"; do
   if strings -a "$artifact" | grep -E 'passwd\.txt|GITHUB_PAT|REMOTE_PAT|CRITICAL_AUTHZ_TOKEN_SAMPLE|https://license\.sample\.invalid'; then
     echo "Forbidden marker found in Windows PE artifact: $artifact" >&2
     exit 42
   fi
-  if strings -a "$artifact" | grep -E 'vmp_platform_(init|probe|protected_add|hash_name)|\.vmp|VMPPassPlugin|OLLVM'; then
+  if strings -a "$artifact" | grep -E 'vmp_platform|libvmp|\.vmp|VMPPassPlugin|OLLVM'; then
     echo "Forbidden platform ABI marker found in Windows PE artifact: $artifact" >&2
     exit 43
   fi

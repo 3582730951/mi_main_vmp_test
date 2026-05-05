@@ -104,25 +104,25 @@ build_jni_abi() {
   src/core/OpcodeMap.cpp \
   src/core/Bytecode.cpp \
   src/runtime/VMRuntime.cpp \
-  -L "$build_dir" -lvmp_platform \
+  -L "$build_dir" -lmi_platform \
   -Wl,-rpath,'$ORIGIN',--strip-all \
-  -o "$build_dir/libvmp_smoke_jni.so"
+  -o "$build_dir/libmi_bridge.so"
 }
 
 build_jni_abi x86_64-linux-android build/android-x86_64
 build_jni_abi aarch64-linux-android build/android-arm64-v8a
 
 apk_root="build/android-apk-smoke"
-package_name="com.vmp.smoke"
+package_name="com.mi.smoke"
 activity_name="ProtectedSmokeActivity"
 rm -rf "$apk_root"
-mkdir -p "$apk_root/src/com/vmp/smoke" "$apk_root/classes" "$apk_root/dex" "$apk_root/assets" \
+mkdir -p "$apk_root/src/com/mi/smoke" "$apk_root/classes" "$apk_root/dex" "$apk_root/assets" \
   "$apk_root/lib/x86_64" "$apk_root/lib/arm64-v8a"
 
 cat >"$apk_root/AndroidManifest.xml" <<'XML'
-<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.vmp.smoke">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.mi.smoke">
     <uses-sdk android:minSdkVersion="23" android:targetSdkVersion="35" />
-    <application android:label="VMP Smoke" android:debuggable="false">
+    <application android:label="Smoke" android:debuggable="false">
         <activity android:name=".ProtectedSmokeActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -133,8 +133,8 @@ cat >"$apk_root/AndroidManifest.xml" <<'XML'
 </manifest>
 XML
 
-cat >"$apk_root/src/com/vmp/smoke/ProtectedSmokeActivity.java" <<'JAVA'
-package com.vmp.smoke;
+cat >"$apk_root/src/com/mi/smoke/ProtectedSmokeActivity.java" <<'JAVA'
+package com.mi.smoke;
 
 import android.app.Activity;
 import android.os.Bundle;
@@ -144,8 +144,8 @@ import java.nio.charset.StandardCharsets;
 
 public class ProtectedSmokeActivity extends Activity {
     static {
-        System.loadLibrary("vmp_platform");
-        System.loadLibrary("vmp_smoke_jni");
+        System.loadLibrary("mi_platform");
+        System.loadLibrary("mi_bridge");
     }
 
     private native int a(int lhs, int rhs);
@@ -159,7 +159,7 @@ public class ProtectedSmokeActivity extends Activity {
         int platform = b();
         int protectedCases = c();
         String result = "sum=" + sum + "\nplatform=" + platform + "\nprotected_cases=" + protectedCases + "\n";
-        Log.i("VMP_SMOKE", result.replace('\n', ';'));
+        Log.i("MI_SMOKE", result.replace('\n', ';'));
         try (FileOutputStream out = openFileOutput("result.txt", MODE_PRIVATE)) {
             out.write(result.getBytes(StandardCharsets.UTF_8));
         } catch (Exception error) {
@@ -170,10 +170,10 @@ public class ProtectedSmokeActivity extends Activity {
 }
 JAVA
 
-cp build/android-x86_64/libvmp_platform.so "$apk_root/lib/x86_64/libvmp_platform.so"
-cp build/android-x86_64/libvmp_smoke_jni.so "$apk_root/lib/x86_64/libvmp_smoke_jni.so"
-cp build/android-arm64-v8a/libvmp_platform.so "$apk_root/lib/arm64-v8a/libvmp_platform.so"
-cp build/android-arm64-v8a/libvmp_smoke_jni.so "$apk_root/lib/arm64-v8a/libvmp_smoke_jni.so"
+cp build/android-x86_64/libmi_platform.so "$apk_root/lib/x86_64/libmi_platform.so"
+cp build/android-x86_64/libmi_bridge.so "$apk_root/lib/x86_64/libmi_bridge.so"
+cp build/android-arm64-v8a/libmi_platform.so "$apk_root/lib/arm64-v8a/libmi_platform.so"
+cp build/android-arm64-v8a/libmi_bridge.so "$apk_root/lib/arm64-v8a/libmi_bridge.so"
 
 aapt package -f \
   -M "$apk_root/AndroidManifest.xml" \
@@ -184,7 +184,7 @@ aapt package -f \
 javac -encoding UTF-8 -source 8 -target 8 \
   -cp "$sdk_root/platforms/android-35/android.jar" \
   -d "$apk_root/classes" \
-  "$apk_root/src/com/vmp/smoke/ProtectedSmokeActivity.java"
+  "$apk_root/src/com/mi/smoke/ProtectedSmokeActivity.java"
 mapfile -t class_files < <(find "$apk_root/classes" -name '*.class' | sort)
 d8 --lib "$sdk_root/platforms/android-35/android.jar" \
   --output "$apk_root/dex" \
@@ -192,14 +192,14 @@ d8 --lib "$sdk_root/platforms/android-35/android.jar" \
 
 (cd "$apk_root/dex" && zip -q -u "../base.apk" classes.dex)
 (cd "$apk_root" && zip -q -u "base.apk" \
-  lib/x86_64/libvmp_platform.so \
-  lib/x86_64/libvmp_smoke_jni.so \
-  lib/arm64-v8a/libvmp_platform.so \
-  lib/arm64-v8a/libvmp_smoke_jni.so)
+  lib/x86_64/libmi_platform.so \
+  lib/x86_64/libmi_bridge.so \
+  lib/arm64-v8a/libmi_platform.so \
+  lib/arm64-v8a/libmi_bridge.so)
 zipalign -f 4 "$apk_root/base.apk" "$apk_root/aligned.apk"
 
 keystore="$apk_root/release.keystore"
-key_alias="${ANDROID_KEY_ALIAS:-vmpreleasekey}"
+key_alias="${ANDROID_KEY_ALIAS:-mireleasekey}"
 store_pass="${ANDROID_KEYSTORE_PASSWORD:-android}"
 key_pass="${ANDROID_KEY_PASSWORD:-$store_pass}"
 signing_key_scope="local_test_release_keystore"
@@ -224,16 +224,16 @@ else
     -keyalg RSA \
     -keysize 2048 \
     -validity 10000 \
-    -dname "CN=Android Test Release,O=VMP,C=US" >/dev/null
+    -dname "CN=Android Test Release,O=Release,C=US" >/dev/null
 fi
 apksigner sign \
   --ks "$keystore" \
   --ks-key-alias "$key_alias" \
   --ks-pass "pass:$store_pass" \
   --key-pass "pass:$key_pass" \
-  --out "$apk_root/vmp-smoke.apk" \
+  --out "$apk_root/mi-smoke.apk" \
   "$apk_root/aligned.apk"
-apksigner verify "$apk_root/vmp-smoke.apk"
+apksigner verify "$apk_root/mi-smoke.apk"
 
 adb start-server >/dev/null
 if ! timeout 180 adb wait-for-device; then
@@ -250,12 +250,12 @@ if [[ "$boot_completed" != "1" ]]; then
 fi
 
 adb uninstall "$package_name" >/dev/null 2>&1 || true
-adb install -r "$apk_root/vmp-smoke.apk" >/dev/null
+adb install -r "$apk_root/mi-smoke.apk" >/dev/null
 adb logcat -c >/dev/null 2>&1 || true
 adb shell am start -W -n "$package_name/.$activity_name" >/dev/null
 sleep 2
 set +e
-result_text="$(adb logcat -d -s VMP_SMOKE:I 2>&1 | tr -d '\r')"
+result_text="$(adb logcat -d -s MI_SMOKE:I 2>&1 | tr -d '\r')"
 read_status=$?
 set -e
 
@@ -287,12 +287,12 @@ runner_name = sys.argv[11] or None
 github_run_url = None
 if os.environ.get("GITHUB_SERVER_URL") and os.environ.get("GITHUB_REPOSITORY") and os.environ.get("GITHUB_RUN_ID"):
     github_run_url = f"{os.environ['GITHUB_SERVER_URL']}/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
-apk = pathlib.Path("build/android-apk-smoke/vmp-smoke.apk")
+apk = pathlib.Path("build/android-apk-smoke/mi-smoke.apk")
 artifacts = [
-    pathlib.Path("build/android-x86_64/libvmp_platform.so"),
-    pathlib.Path("build/android-x86_64/libvmp_smoke_jni.so"),
-    pathlib.Path("build/android-arm64-v8a/libvmp_platform.so"),
-    pathlib.Path("build/android-arm64-v8a/libvmp_smoke_jni.so"),
+    pathlib.Path("build/android-x86_64/libmi_platform.so"),
+    pathlib.Path("build/android-x86_64/libmi_bridge.so"),
+    pathlib.Path("build/android-arm64-v8a/libmi_platform.so"),
+    pathlib.Path("build/android-arm64-v8a/libmi_bridge.so"),
     pathlib.Path("samples/protected_chain/out/protected_sample.vmp"),
     apk,
 ]
@@ -329,6 +329,10 @@ for path in artifacts:
             b"VMPSAM",
             b"VMPIRL",
             b"OLLVM",
+            b"vmp_platform",
+            b"vmp_smoke",
+            b"com/vmp",
+            b"VMP_SMOKE",
         ):
             if marker in data:
                 jni_hits.append({"path": str(path), "marker": marker.decode("ascii")})
@@ -348,6 +352,12 @@ for marker in (
     b"VMPSAM",
     b"VMPIRL",
     b"OLLVM",
+    b"vmp_platform",
+    b"vmp_smoke",
+    b"com/vmp",
+    b"com.vmp",
+    b"VMP_SMOKE",
+    b"VMP Smoke",
 ):
     if marker in apk_bytes:
         forbidden_apk_hits.append(marker.decode("ascii"))

@@ -23,13 +23,13 @@ from anti_analysis import DetectionCategory, EnvironmentObservation, PassiveEnvi
 
 
 def compile_preload_probe(work_dir: pathlib.Path) -> tuple[pathlib.Path, pathlib.Path]:
-    preload_c = work_dir / "vmp_preload_probe.c"
-    preload_so = work_dir / "libvmp_preload_probe.so"
+    preload_c = work_dir / "mi_preload_probe.c"
+    preload_so = work_dir / "libmi_preload_probe.so"
     probe_py = work_dir / "maps_probe.py"
     preload_c.write_text(
         textwrap.dedent(
             """
-            __attribute__((visibility("default"))) int vmp_preload_probe_marker(void) {
+            __attribute__((visibility("default"))) int mi_preload_probe_marker(void) {
               return 0x564d50;
             }
             """
@@ -42,7 +42,7 @@ def compile_preload_probe(work_dir: pathlib.Path) -> tuple[pathlib.Path, pathlib
             from pathlib import Path
             import os
 
-            target = os.environ["VMP_PRELOAD_PROBE"]
+            target = os.environ["MI_PRELOAD_PROBE"]
             maps = Path("/proc/self/maps").read_text(encoding="utf-8", errors="ignore")
             print("ld_preload_env=1" if os.environ.get("LD_PRELOAD") else "ld_preload_env=0")
             print("preload_mapped=1" if target in maps else "preload_mapped=0")
@@ -59,7 +59,7 @@ def run_preload_probe(preload_so: pathlib.Path, probe_py: pathlib.Path) -> dict[
     env = {
         **os.environ,
         "LD_PRELOAD": str(preload_so),
-        "VMP_PRELOAD_PROBE": str(preload_so),
+        "MI_PRELOAD_PROBE": str(preload_so),
     }
     proc = subprocess.run(
         [sys.executable, str(probe_py)],

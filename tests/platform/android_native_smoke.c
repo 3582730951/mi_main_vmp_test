@@ -10,7 +10,7 @@ typedef int (*add_fn)(int, int);
 typedef int (*jni_on_load_fn)(void *, void *);
 
 int main(int argc, char **argv) {
-  const char *library_path = argc > 1 ? argv[1] : "./libvmp_platform.so";
+  const char *library_path = argc > 1 ? argv[1] : "./libmi_platform.so";
   void *handle = dlopen(library_path, RTLD_NOW | RTLD_LOCAL);
   init_fn init;
   probe_fn probe;

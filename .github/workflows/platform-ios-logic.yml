@@ -35,7 +35,7 @@ jobs:
 
       - name: Audit iOS Mach-O metadata
         run: |
-          IOS_LIB="$(find build/ios-logic -name 'libvmp_platform.a' -type f | head -n 1)"
+          IOS_LIB="$(find build/ios-logic -name 'libmi_platform.a' -type f | head -n 1)"
           test -n "$IOS_LIB"
           python3 scripts/audit/macho_metadata_audit.py \
             --root . \

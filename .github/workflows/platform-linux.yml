@@ -27,5 +27,5 @@ jobs:
 
       - name: Hardening metadata
         run: |
-          readelf -h build/linux/vmp_platform_smoke
-          readelf -d build/linux/libvmp_platform.so
+          readelf -h build/linux/mi_platform_smoke
+          readelf -d build/linux/libmi_platform.so

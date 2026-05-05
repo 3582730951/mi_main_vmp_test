@@ -68,7 +68,7 @@ build_abi() {
 build_abi x86_64 build/android-x86_64
 build_abi arm64-v8a build/android-arm64-v8a
 
-runner="build/android-x86_64/vmp_android_native_smoke"
+runner="build/android-x86_64/mi_android_native_smoke"
 "$ndk_home/toolchains/llvm/prebuilt/linux-x86_64/bin/x86_64-linux-android23-clang" \
   -O2 -I src/platform tests/platform/android_native_smoke.c -ldl -o "$runner"
 
@@ -86,14 +86,14 @@ if [[ "$boot_completed" != "1" ]]; then
   exit 44
 fi
 
-remote_dir="/data/local/tmp/vmp_platform"
+remote_dir="/data/local/tmp/mi_platform"
 adb shell "rm -rf '$remote_dir' && mkdir -p '$remote_dir'" >/dev/null
-adb push build/android-x86_64/libvmp_platform.so "$remote_dir/libvmp_platform.so" >/dev/null
-adb push "$runner" "$remote_dir/vmp_android_native_smoke" >/dev/null
-adb shell "chmod 755 '$remote_dir/vmp_android_native_smoke'" >/dev/null
+adb push build/android-x86_64/libmi_platform.so "$remote_dir/libmi_platform.so" >/dev/null
+adb push "$runner" "$remote_dir/mi_android_native_smoke" >/dev/null
+adb shell "chmod 755 '$remote_dir/mi_android_native_smoke'" >/dev/null
 
 set +e
-smoke_output="$(adb shell "cd '$remote_dir' && LD_LIBRARY_PATH=. ./vmp_android_native_smoke ./libvmp_platform.so" 2>&1)"
+smoke_output="$(adb shell "cd '$remote_dir' && LD_LIBRARY_PATH=. ./mi_android_native_smoke ./libmi_platform.so" 2>&1)"
 smoke_status=$?
 set -e
 
@@ -114,9 +114,9 @@ abi = sys.argv[4]
 api_level = sys.argv[5]
 device_model = sys.argv[6]
 artifacts = [
-    pathlib.Path("build/android-x86_64/libvmp_platform.so"),
-    pathlib.Path("build/android-arm64-v8a/libvmp_platform.so"),
-    pathlib.Path("build/android-x86_64/vmp_android_native_smoke"),
+    pathlib.Path("build/android-x86_64/libmi_platform.so"),
+    pathlib.Path("build/android-arm64-v8a/libmi_platform.so"),
+    pathlib.Path("build/android-x86_64/mi_android_native_smoke"),
 ]
 data = {
     "schema": "vmp.platform.android_emulator_smoke.v1",

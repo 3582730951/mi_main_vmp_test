@@ -26,7 +26,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from anti_analysis import ArtifactSurfacePolicy
 
 
-DEFAULT_ARTIFACTS = ("build/ios-logic/libvmp_platform.a",)
+DEFAULT_ARTIFACTS = ("build/ios-logic/libmi_platform.a",)
 
 THIN_MAGICS: dict[bytes, tuple[str, bool]] = {
     b"\xfe\xed\xfa\xce": (">", False),

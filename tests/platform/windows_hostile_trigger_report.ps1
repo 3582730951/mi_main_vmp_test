@@ -11,7 +11,7 @@ if (!(Test-Path $BuildDir)) {
   tests/platform/windows_acceptance.ps1 -BuildDir $BuildDir
 }
 
-$dll = Get-ChildItem $BuildDir -Recurse -Filter "vmp_platform*.dll" | Select-Object -First 1
+$dll = Get-ChildItem $BuildDir -Recurse -Filter "mi_platform*.dll" | Select-Object -First 1
 if ($null -eq $dll) {
   throw "Windows platform DLL is required before hostile trigger probing"
 }

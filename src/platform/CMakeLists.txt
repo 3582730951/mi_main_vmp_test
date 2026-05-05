@@ -25,6 +25,11 @@ else()
   message(FATAL_ERROR "Unknown PLATFORM_ADAPTER_TARGET=${PLATFORM_ADAPTER_TARGET}")
 endif()
 
+set_target_properties(vmp_platform PROPERTIES OUTPUT_NAME "mi_platform")
+if(TARGET vmp_platform_smoke)
+  set_target_properties(vmp_platform_smoke PROPERTIES OUTPUT_NAME "mi_platform_smoke")
+endif()
+
 target_include_directories(vmp_platform PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 if(TARGET vmp_platform_smoke)
   target_include_directories(vmp_platform_smoke PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
