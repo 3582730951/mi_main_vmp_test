@@ -41,6 +41,10 @@ call number harvesting for evasion. Platform system access must stay inside the
 approved platform adapters or fixed runtime APIs. Release QA may minimize and
 measure import/export exposure, but it must not replace ordinary platform
 contracts with syscall paths whose purpose is to bypass security monitoring.
+The minimal Linux release runner may use the fixed x86_64 `exit` syscall only as
+its CRT-free process termination path. This is not a generic syscall resolver,
+does not harvest syscall numbers, and must not be expanded into a platform API
+bypass layer.
 
 ## Credential Handling
 

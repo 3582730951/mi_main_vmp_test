@@ -3,7 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 
-#if defined(_WIN32) && defined(VMP_FREESTANDING_WINDOWS_ENTRY)
+#if defined(VMP_FREESTANDING_WINDOWS_ENTRY) || defined(VMP_FREESTANDING_LINUX_ENTRY)
 extern "C" void *memset(void *dest, int value, std::size_t count) {
   auto *out = static_cast<std::uint8_t *>(dest);
   for (std::size_t i = 0; i < count; ++i) {
@@ -22,7 +22,9 @@ extern "C" void *memcpy(void *dest, const void *src, std::size_t count) {
 }
 
 extern "C" void __main() {}
+#endif
 
+#if defined(_WIN32) && defined(VMP_FREESTANDING_WINDOWS_ENTRY)
 #if defined(_MSC_VER)
 #define VMP_STDCALL __stdcall
 #else
@@ -309,6 +311,25 @@ int protectedReleaseMain() {
 extern "C" void mainCRTStartup() {
   ExitProcess(static_cast<unsigned int>(protectedReleaseMain()));
 }
+#elif defined(__linux__) && defined(VMP_FREESTANDING_LINUX_ENTRY)
+#if !defined(__x86_64__)
+#error "VMP_FREESTANDING_LINUX_ENTRY currently supports x86_64 only"
+#endif
+extern "C" int vmp_protected_release_main_entry() {
+  return protectedReleaseMain();
+}
+
+extern "C" void _start();
+asm(
+    ".global _start\n"
+    "_start:\n"
+    "  xor %rbp, %rbp\n"
+    "  andq $-16, %rsp\n"
+    "  call vmp_protected_release_main_entry\n"
+    "  movslq %eax, %rdi\n"
+    "  mov $60, %rax\n"
+    "  syscall\n"
+    "  hlt\n");
 #else
 int main() {
   return protectedReleaseMain();

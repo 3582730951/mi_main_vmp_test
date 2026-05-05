@@ -31,10 +31,12 @@ out.write_text(
 )
 PY
 
-c++ -std=c++17 -O2 -DVMP_DISABLE_RUNTIME_ENTRY_EXPORTS=1 -fvisibility=hidden -fdata-sections -ffunction-sections \
+c++ -std=c++17 -O2 -DVMP_DISABLE_RUNTIME_ENTRY_EXPORTS=1 -DVMP_FREESTANDING_LINUX_ENTRY=1 \
+  -fno-exceptions -fno-rtti -fno-stack-protector -fno-asynchronous-unwind-tables -fno-unwind-tables \
+  -fvisibility=hidden -fdata-sections -ffunction-sections \
   -I"${BUILD_DIR}" -I"${ROOT_DIR}/src" \
   "${ROOT_DIR}/tools/vmp/protected_release_main.cpp" \
-  -Wl,--gc-sections \
+  -nostdlib -nostartfiles -static -no-pie -Wl,--gc-sections -Wl,-e,_start \
   -o "${BINARY_PATH}"
 
 strip --strip-all "${BINARY_PATH}" 2>/dev/null || true

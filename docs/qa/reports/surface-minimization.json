@@ -1,6 +1,6 @@
 {
   "avoidable_surface_findings": 0,
-  "generated_at_utc": "2026-05-05T07:20:23.095488Z",
+  "generated_at_utc": "2026-05-05T07:35:04.789964Z",
   "missing_artifacts": [],
   "policy_note": "Mandatory executable-container signatures are observed, not treated as removable. This gate fails on avoidable product, VM, OLLVM, protected plaintext, and explicit import-resolver markers.",
   "scanned_artifacts": [
@@ -10,7 +10,7 @@
       "elf_observations": {
         "export_count": 0,
         "export_names": [],
-        "import_count": 5,
+        "import_count": 0,
         "note": "ELF dynamic linker metadata is recorded separately from avoidable protected-surface markers.",
         "status": "observed",
         "tool": "readelf"
