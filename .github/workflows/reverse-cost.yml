@@ -17,7 +17,7 @@ jobs:
       - name: Install analysis toolchain
         run: |
           sudo apt-get update
-          sudo apt-get install -y binutils llvm-14-dev llvm-14-tools clang-14
+          sudo apt-get install -y binutils llvm-14-dev llvm-14-tools clang-14 g++-mingw-w64-x86-64 binutils-mingw-w64-x86-64
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           timeout 120s python3 -m pip install --user --disable-pip-version-check --only-binary=:all: lief || true
           timeout 180s python3 -m pip install --user --disable-pip-version-check flare-capa || true
@@ -31,6 +31,7 @@ jobs:
           python3 scripts/audit/protected_callgraph_audit.py --root .
           bash tests/integration/run_protected_sample_chain.sh
           bash tests/integration/run_release_protected_binary.sh
+          bash tests/platform/windows_release_cross_build.sh
           python3 scripts/audit/surface_minimization_audit.py --root .
 
       - name: Generate automated reverse-cost assessment
@@ -47,7 +48,9 @@ jobs:
             docs/qa/reports/reverse-cost-assessment.json
             docs/qa/reports/protected-callgraph.json
             docs/qa/reports/surface-minimization.json
+            docs/qa/reports/windows-protected-cross-build.json
             tests/core/.llvm-out/hotspot-callsite.log
             tests/core/.llvm-out/hotspot-callsite.protected.ll
             docs/qa/reports/release-protected-binary.json
+            build/windows-protected-cross/**
           if-no-files-found: error
