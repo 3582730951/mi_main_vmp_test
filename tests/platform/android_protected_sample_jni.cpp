@@ -22,6 +22,9 @@ constexpr std::array<std::uint8_t, 24> kEncodedSeed{
     0x2a, 0x28, 0x35, 0x2e, 0x3f, 0x39, 0x2e, 0x3f, 0x3e, 0x77, 0x29, 0x3b,
     0x37, 0x2a, 0x36, 0x3f, 0x77, 0x29, 0x3f, 0x3f, 0x3e, 0x77, 0x2c, 0x6b,
 };
+constexpr std::array<std::uint8_t, 8> kSampleArtifactMagic{
+    0x8e, 0x52, 0xb9, 0x04, 0xd7, 0x6a, 0x31, 0xc8,
+};
 
 struct Artifact {
   core::OpcodeMap map;
@@ -62,11 +65,11 @@ std::uint64_t readU64(std::size_t &offset) {
 }
 
 Artifact parseEmbeddedArtifact() {
-  const std::array<std::uint8_t, 8> expected{'V', 'M', 'P', 'S', 'A', 'M', '1', '\0'};
-  ensure(kProtectedSampleBlobSize >= expected.size(), "protected sample artifact is too short");
-  ensure(std::equal(expected.begin(), expected.end(), kProtectedSampleBlob), "invalid protected sample magic");
+  ensure(kProtectedSampleBlobSize >= kSampleArtifactMagic.size(), "protected sample artifact is too short");
+  ensure(std::equal(kSampleArtifactMagic.begin(), kSampleArtifactMagic.end(), kProtectedSampleBlob),
+         "invalid protected sample magic");
 
-  std::size_t offset = expected.size();
+  std::size_t offset = kSampleArtifactMagic.size();
   Artifact artifact;
   artifact.chunk.version = readU32(offset);
   artifact.chunk.vmLevel = readU32(offset);
@@ -99,9 +102,6 @@ bool runCase(const Artifact &artifact, std::uint64_t left, std::uint64_t right) 
   runtime::VMContext ctx;
   ctx.regs[1] = left;
   ctx.regs[2] = right;
-  ctx.hooks.authorizeChunk = [](const core::BytecodeChunk &chunk) {
-    return chunk.magic == "VMPBC1" && chunk.encryptedPayload.size() <= 4096;
-  };
   const auto status = runtime::executeEncryptedChunk(ctx, artifact.chunk, artifact.map, seed());
   return status == runtime::VMStatus::Ok && ctx.returnValue == baselineBehavior(left, right);
 }

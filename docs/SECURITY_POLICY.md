@@ -34,6 +34,14 @@ They must not:
 - persist beyond the protected process lifetime;
 - attack analysis tools or the host environment.
 
+## System Call Boundary
+
+The project does not implement generic direct-syscall bypass stubs or system
+call number harvesting for evasion. Platform system access must stay inside the
+approved platform adapters or fixed runtime APIs. Release QA may minimize and
+measure import/export exposure, but it must not replace ordinary platform
+contracts with syscall paths whose purpose is to bypass security monitoring.
+
 ## Credential Handling
 
 `passwd.txt` is treated only as a local migration source. Its contents must never be printed, committed, copied into generated files, embedded into workflows, or logged by tests. CI credentials must be stored in GitHub Encrypted Secrets and referenced only through `${{ secrets.NAME }}` syntax.
@@ -48,6 +56,7 @@ A release artifact cannot be considered accepted until automated checks show:
 
 - behavior consistency for protected samples;
 - zero configured critical plaintext strings in release protected artifacts;
+- zero avoidable VM/OLLVM/product magic markers in release protected artifacts;
 - secret hygiene across docs/scripts/workflows;
 - platform-specific gates for the target platform;
 - three consecutive automated audit passes.

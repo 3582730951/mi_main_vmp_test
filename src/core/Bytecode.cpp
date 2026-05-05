@@ -108,7 +108,7 @@ BytecodeChunk encryptChunk(const std::vector<Instruction> &instructions, const O
 }
 
 DecryptResult decryptChunk(const BytecodeChunk &chunk, const OpcodeMap &map, std::string_view seed) {
-    if (chunk.magic != "VMPBC1") {
+    if (chunk.magic != kBytecodeMagic) {
         return {false, "invalid bytecode magic", {}};
     }
     if (chunk.version != 1) {

@@ -21,6 +21,12 @@ from .string_policy import (
     StringScannerPolicy,
     StringScanResult,
 )
+from .artifact_surface import (
+    ArtifactSurfacePolicy,
+    SurfaceCategory,
+    SurfaceFinding,
+    SurfaceScanResult,
+)
 from .stack_backtrace import RandomizedBacktracePolicy, RandomizedBacktraceSampler, StackFrameSummary
 
 __all__ = [
@@ -40,6 +46,10 @@ __all__ = [
     "ScanFinding",
     "StringScannerPolicy",
     "StringScanResult",
+    "ArtifactSurfacePolicy",
+    "SurfaceCategory",
+    "SurfaceFinding",
+    "SurfaceScanResult",
     "RandomizedBacktracePolicy",
     "RandomizedBacktraceSampler",
     "StackFrameSummary",

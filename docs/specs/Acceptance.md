@@ -10,7 +10,7 @@ Run the full local gate from the repository root:
 ./acceptance.sh
 ```
 
-The runner executes core, integration, platform, performance, and report-generation checks once, then executes the deterministic automated audit three times. All three audit runs must pass and produce consistent counts for task coverage, workflow findings, secret hygiene findings, string-policy findings, and test inventory.
+The runner executes core, integration, platform, performance, surface-minimization, and report-generation checks once, then executes the deterministic automated audit three times. All three audit runs must pass and produce consistent counts for task coverage, workflow findings, secret hygiene findings, string-policy findings, surface-minimization findings, and test inventory.
 
 For final sign-off, run the strict gate instead:
 
@@ -29,6 +29,7 @@ For final sign-off, run the strict gate instead:
 | Secrets hygiene | Scan repository text files except `passwd.txt` itself. The gate must not read, print, hash, or depend on `passwd.txt` contents. No committed file may contain likely GitHub PATs, private keys, or sensitive assignments. |
 | Workflow secret references | Scan `.github/workflows/**` when present. Workflows must not reference `passwd.txt`, raw PAT/token/password values, or sensitive environment values outside `${{ secrets.* }}`. |
 | String policy | Protected release artifacts must not contain business-critical strings, API names, JNI names, authorization fields, URLs, or key material in plaintext. Until protected artifacts exist, the gate verifies that the string policy is documented and reports zero scanned artifacts. |
+| Surface minimization | Generate `docs/qa/reports/surface-minimization.json` from release artifacts. The report must show zero avoidable product, VM, OLLVM, protected plaintext, and explicit import-resolver markers. Mandatory PE/ELF/APK container signatures are recorded as observations rather than treated as removable. |
 | Available tests | Verify there is at least one automated QA test under `tests/qa/**`, at least one audit script under `scripts/audit/**`, and runnable test commands are discoverable. |
 | Performance report | Generate `docs/qa/reports/performance-sample.json` from the protected sample benchmark. The report must include baseline/protected runtime, overhead ratio, artifact size, and `defense_priority: true`. |
 
@@ -73,3 +74,18 @@ For release protected binaries, the string scanner fails on plaintext occurrence
 - URLs, callback hosts, and endpoint paths that are not explicitly allowlisted.
 
 The scanner must operate on generated protected artifacts only. It must never use `passwd.txt` as input and must not print secret-bearing strings found during scanning; reports use file paths, categories, and counts.
+
+## Artifact Surface Policy
+
+The surface-minimization audit separates mandatory executable container features
+from avoidable protector signatures. PE, ELF, APK/ZIP headers, dynamic-linker
+metadata, and CRT startup artifacts can be observed in reports because removing
+them would make the platform loader reject the file. The gate fails on avoidable
+markers such as ASCII VM container magic, OLLVM/product names, protected seed or
+business strings, and explicit import-resolver API names in protected release
+artifacts.
+
+The syscall policy is intentionally conservative: the project records that
+generic direct-syscall substitution is not implemented for evasion. Required
+system interaction must remain in approved platform adapters or fixed runtime
+APIs under `docs/SECURITY_POLICY.md`.

@@ -397,7 +397,12 @@ const char *statusName(VMStatus status) {
 
 } // namespace vmp::runtime
 
+#ifndef VMP_DISABLE_RUNTIME_ENTRY_EXPORTS
 namespace {
+
+constexpr std::array<std::uint8_t, 8> kRuntimeArtifactMagic{
+    0xd4, 0x13, 0x8a, 0x61, 0x2e, 0xc7, 0x90, 0x5b,
+};
 
 void ensureReadable(std::size_t offset, std::size_t count, std::size_t totalSize, const char *what) {
     if (offset > totalSize || count > (totalSize - offset)) {
@@ -437,20 +442,20 @@ RuntimeArtifact parseRuntimeArtifact(const std::uint8_t *bytes, std::size_t byte
         throw std::runtime_error("runtime artifact is too short");
     }
 
-    const std::array<std::uint8_t, 8> expected{'V', 'M', 'P', 'I', 'R', 'L', '4', '\0'};
-    for (std::size_t index = 0; index < expected.size(); ++index) {
-        if (bytes[index] != expected[index]) {
+    for (std::size_t index = 0; index < kRuntimeArtifactMagic.size(); ++index) {
+        if (bytes[index] != kRuntimeArtifactMagic[index]) {
             throw std::runtime_error("invalid runtime artifact magic");
         }
     }
 
-    std::size_t offset = expected.size();
+    std::size_t offset = kRuntimeArtifactMagic.size();
     RuntimeArtifact artifact;
     const auto totalSize = readU32(bytes, offset, bytecodeSize);
     if (totalSize != bytecodeSize) {
         throw std::runtime_error("runtime artifact size mismatch");
     }
-    if (totalSize < expected.size() + 4 + 4 + 4 + 8 + 8 + 8 + 8 + 8 + 4 + artifact.map.encode.size() + 4 ||
+    if (totalSize < kRuntimeArtifactMagic.size() + 4 + 4 + 4 + 8 + 8 + 8 + 8 + 8 + 4 +
+                        artifact.map.encode.size() + 4 ||
         totalSize > 8192U) {
         throw std::runtime_error("invalid runtime artifact size");
     }
@@ -517,11 +522,11 @@ std::int32_t executeRuntimeEntry(const std::uint8_t *bytecode,
             return static_cast<std::uint32_t>(lhs + rhs);
         };
         ctx.hooks.authorizeChunk = [](const vmp::core::BytecodeChunk &chunk) {
-            return chunk.magic == "VMPBC1" && chunk.encryptedPayload.size() <= 4096;
+            return chunk.magic == vmp::core::kBytecodeMagic && chunk.encryptedPayload.size() <= 4096;
         };
         ctx.hooks.validateIntegrity = [](const vmp::runtime::VMContext &ctx,
                                          const vmp::core::BytecodeChunk &chunk) {
-            return ctx.activeChunk() == &chunk && chunk.magic == "VMPBC1" && chunk.authTag != 0 &&
+            return ctx.activeChunk() == &chunk && chunk.magic == vmp::core::kBytecodeMagic && chunk.authTag != 0 &&
                    !chunk.encryptedPayload.empty();
         };
         const auto status = vmp::runtime::executeEncryptedChunk(ctx, artifact.chunk, artifact.map, artifact.seedMaterial);
@@ -570,3 +575,4 @@ extern "C" std::int32_t vmp_runtime_entry_i32_i32_i32_i32_i32(const std::uint8_t
                                                                std::int32_t arg3) {
     return executeRuntimeEntry(bytecode, bytecodeSize, arg0, arg1, arg2, arg3, 4);
 }
+#endif

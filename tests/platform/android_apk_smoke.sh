@@ -307,6 +307,10 @@ for path in artifacts:
             b"nativeVerifyProtectedSample",
             b"nativeVerifyEmbeddedSample",
             b"protected-sample-seed-v1",
+            b"VMPBC",
+            b"VMPSAM",
+            b"VMPIRL",
+            b"OLLVM",
         ):
             if marker in data:
                 jni_hits.append({"path": str(path), "marker": marker.decode("ascii")})
@@ -322,6 +326,10 @@ for marker in (
     b"https://license.sample.invalid",
     b"Authorization:",
     b"Bearer ",
+    b"VMPBC",
+    b"VMPSAM",
+    b"VMPIRL",
+    b"OLLVM",
 ):
     if marker in apk_bytes:
         forbidden_apk_hits.append(marker.decode("ascii"))

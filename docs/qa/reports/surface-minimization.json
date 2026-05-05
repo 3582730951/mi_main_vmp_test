@@ -1,0 +1,71 @@
+{
+  "avoidable_surface_findings": 0,
+  "generated_at_utc": "2026-05-05T06:41:40.951790Z",
+  "missing_artifacts": [],
+  "policy_note": "Mandatory executable-container signatures are observed, not treated as removable. This gate fails on avoidable product, VM, OLLVM, protected plaintext, and explicit import-resolver markers.",
+  "scanned_artifacts": [
+    {
+      "artifact": "artifacts/protected/linux/protected_release_sample",
+      "container": "elf",
+      "elf_observations": {
+        "export_count": 1,
+        "export_names": [
+          "_ZTISt13runtime_error@GLIBCXX_3.4"
+        ],
+        "import_count": 29,
+        "note": "ELF dynamic linker metadata is recorded separately from avoidable protected-surface markers.",
+        "status": "observed",
+        "tool": "readelf"
+      },
+      "findings": [],
+      "mandatory_features": [
+        "elf_magic",
+        "elf_program_headers",
+        "elf_dynamic_sections"
+      ],
+      "passed": true,
+      "pe_observations": {}
+    },
+    {
+      "artifact": "samples/protected_chain/out/protected_sample.vmp",
+      "container": "opaque",
+      "elf_observations": {},
+      "findings": [],
+      "mandatory_features": [],
+      "passed": true,
+      "pe_observations": {}
+    },
+    {
+      "artifact": "build/windows-protected-cross/protected_release_sample.exe",
+      "container": "pe",
+      "elf_observations": {},
+      "findings": [],
+      "mandatory_features": [
+        "mz_magic",
+        "pe_headers",
+        "data_directories"
+      ],
+      "passed": true,
+      "pe_observations": {
+        "export_directory_present": false,
+        "import_count": 72,
+        "import_dlls": [
+          "KERNEL32.dll",
+          "libgcc_s_seh-1.dll",
+          "libstdc++-6.dll",
+          "msvcrt.dll"
+        ],
+        "note": "PE headers and CRT TLS/import directories are mandatory container/runtime observations; avoidable product markers are reported as findings.",
+        "status": "observed",
+        "tls_directory_present": true,
+        "tool": "objdump"
+      }
+    }
+  ],
+  "schema": "vmp.qa.surface_minimization.v1",
+  "status": "pass",
+  "syscall_policy": {
+    "note": "The project does not add generic direct-syscall bypass stubs. Platform system access remains inside approved adapters or fixed runtime APIs under docs/SECURITY_POLICY.md.",
+    "status": "not_implemented_for_evasion"
+  }
+}

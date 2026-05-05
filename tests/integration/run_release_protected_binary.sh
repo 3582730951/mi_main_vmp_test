@@ -31,7 +31,7 @@ out.write_text(
 )
 PY
 
-c++ -std=c++17 -O2 -fvisibility=hidden -fdata-sections -ffunction-sections \
+c++ -std=c++17 -O2 -DVMP_DISABLE_RUNTIME_ENTRY_EXPORTS=1 -fvisibility=hidden -fdata-sections -ffunction-sections \
   -I"${BUILD_DIR}" -I"${ROOT_DIR}/src" \
   "${ROOT_DIR}/tools/vmp/protected_release_main.cpp" \
   "${ROOT_DIR}/src/core/Deterministic.cpp" \
@@ -66,6 +66,10 @@ forbidden = [
     b"Java_",
     b"dlopen",
     b"dlsym",
+    b"VMPBC",
+    b"VMPSAM",
+    b"VMPIRL",
+    b"OLLVM",
 ]
 hits = [item.decode("ascii", errors="ignore") for item in forbidden if item in data]
 strings = subprocess.run(["strings", "-a", str(binary)], check=False, text=True, stdout=subprocess.PIPE)

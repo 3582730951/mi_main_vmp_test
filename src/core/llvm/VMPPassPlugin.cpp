@@ -716,7 +716,7 @@ std::vector<std::uint8_t> serializeRuntimeArtifact(const vmp::core::OpcodeMap &M
                                                    const vmp::core::BytecodeChunk &Chunk,
                                                    std::uint64_t SeedHash) {
     std::vector<std::uint8_t> Out;
-    const std::array<std::uint8_t, 8> Magic{'V', 'M', 'P', 'I', 'R', 'L', '4', '\0'};
+    const std::array<std::uint8_t, 8> Magic{0xd4, 0x13, 0x8a, 0x61, 0x2e, 0xc7, 0x90, 0x5b};
     Out.insert(Out.end(), Magic.begin(), Magic.end());
     const std::size_t SizeOffset = Out.size();
     appendU32(Out, 0);

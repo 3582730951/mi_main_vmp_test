@@ -38,19 +38,20 @@ pathlib.Path(sys.argv[2]).write_text(
 PY
 
 exe="$build_dir/protected_release_sample.exe"
-"$cc" -std=c++17 -O2 -s \
+"$cc" -std=c++17 -O2 -s -DVMP_DISABLE_RUNTIME_ENTRY_EXPORTS=1 -fvisibility=hidden -fdata-sections -ffunction-sections \
   -I "$build_dir" -I src \
   tools/vmp/protected_release_main.cpp \
   src/core/Deterministic.cpp \
   src/core/OpcodeMap.cpp \
   src/core/Bytecode.cpp \
   src/runtime/VMRuntime.cpp \
+  -Wl,--gc-sections \
   -o "$exe"
 
 "$objdump" -f "$exe" | grep -q 'pei-x86-64'
 "$objdump" -p "$exe" >"$build_dir/protected_release_sample.exe.pe.txt"
 
-if strings -a "$exe" | grep -E 'protected-sample-seed-v1|authorized_sample_behavior|CRITICAL_AUTHZ_TOKEN_SAMPLE|https://license\.sample\.invalid|Authorization:|Bearer |JNI_OnLoad|Java_|dlopen|dlsym'; then
+if strings -a "$exe" | grep -E 'protected-sample-seed-v1|authorized_sample_behavior|CRITICAL_AUTHZ_TOKEN_SAMPLE|https://license\.sample\.invalid|Authorization:|Bearer |JNI_OnLoad|Java_|dlopen|dlsym|VMPBC|VMPSAM|VMPIRL|OLLVM'; then
   echo "Forbidden marker found in Windows protected release PE artifact" >&2
   exit 42
 fi

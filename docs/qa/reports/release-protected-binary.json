@@ -1,6 +1,6 @@
 {
   "artifact": "/workspace/artifacts/protected/linux/protected_release_sample",
-  "artifact_bytes": 35336,
+  "artifact_bytes": 31184,
   "behavior_cases_passed": 4,
   "embedded_sample": "/workspace/tests/integration/.release-build/protected_sample.vmp",
   "embedded_sample_bytes": 133,
@@ -8,6 +8,6 @@
   "schema": "vmp.release.protected_binary.v1",
   "scope_note": "Local stripped Linux executable embeds the generated encrypted VM sample and executes it through the VM runtime. This is release-artifact evidence, not VMProtect-tier commercial proof.",
   "status": "pass",
-  "strings_count": 250,
+  "strings_count": 229,
   "stripped": true
 }

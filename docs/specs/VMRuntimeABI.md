@@ -62,7 +62,7 @@ registers `r1`, `r2`, `r3`, and `r4` respectively before dispatch.
 
 ## Runtime Artifact
 
-The LLVM runtime-entry artifact starts with `VMPIRL4\0`, followed by a little-endian total artifact length, chunk metadata, a configuration seed-material hash, authenticated opcode-map bytes, payload length, and encrypted payload. Runtime-entry stubs pass both the byte pointer and the generated array length; parsing requires that external length to match the embedded total length before reading variable-sized opcode-map and payload sections. The parser rejects zero or duplicate opcode-map bytes and does not embed the raw configured seed string.
+The LLVM runtime-entry artifact starts with a non-printable 8-byte marker, followed by a little-endian total artifact length, chunk metadata, a configuration seed-material hash, authenticated opcode-map bytes, payload length, and encrypted payload. Runtime-entry stubs pass both the byte pointer and the generated array length; parsing requires that external length to match the embedded total length before reading variable-sized opcode-map and payload sections. The parser rejects zero or duplicate opcode-map bytes and does not embed the raw configured seed string.
 
 ## Exception Bridge
 

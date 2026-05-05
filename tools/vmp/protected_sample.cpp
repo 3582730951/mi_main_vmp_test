@@ -26,6 +26,9 @@ constexpr std::uint64_t kPlatformSalt = 0x70726f7465637421ULL;
 constexpr std::string_view kFunctionName = "authorized_sample_behavior";
 constexpr std::string_view kSeed = "protected-sample-seed-v1";
 constexpr std::uint32_t kVmLevel = 2;
+constexpr std::array<std::uint8_t, 8> kSampleArtifactMagic{
+    0x8e, 0x52, 0xb9, 0x04, 0xd7, 0x6a, 0x31, 0xc8,
+};
 
 struct Artifact {
     core::OpcodeMap map;
@@ -135,8 +138,7 @@ Artifact buildArtifact() {
 
 std::vector<std::uint8_t> serializeArtifact(const Artifact &artifact) {
     std::vector<std::uint8_t> out;
-    const std::array<char, 8> magic{'V', 'M', 'P', 'S', 'A', 'M', '1', '\0'};
-    out.insert(out.end(), magic.begin(), magic.end());
+    out.insert(out.end(), kSampleArtifactMagic.begin(), kSampleArtifactMagic.end());
     appendU32(out, artifact.chunk.version);
     appendU32(out, artifact.chunk.vmLevel);
     appendU64(out, artifact.chunk.functionHash);
@@ -153,10 +155,10 @@ std::vector<std::uint8_t> serializeArtifact(const Artifact &artifact) {
 Artifact parseArtifact(const std::filesystem::path &path) {
     const auto bytes = readFileBytes(path);
     std::size_t offset = 0;
-    const std::array<std::uint8_t, 8> expected{'V', 'M', 'P', 'S', 'A', 'M', '1', '\0'};
-    ensure(bytes.size() >= expected.size(), "artifact is too short");
-    ensure(std::equal(expected.begin(), expected.end(), bytes.begin()), "invalid sample artifact magic");
-    offset += expected.size();
+    ensure(bytes.size() >= kSampleArtifactMagic.size(), "artifact is too short");
+    ensure(std::equal(kSampleArtifactMagic.begin(), kSampleArtifactMagic.end(), bytes.begin()),
+           "invalid sample artifact magic");
+    offset += kSampleArtifactMagic.size();
 
     Artifact artifact;
     artifact.chunk.version = readU32(bytes, offset);
@@ -187,7 +189,7 @@ CaseResult runCase(const Artifact &artifact, std::uint64_t left, std::uint64_t r
     ctx.regs[1] = left;
     ctx.regs[2] = right;
     ctx.hooks.authorizeChunk = [](const core::BytecodeChunk &chunk) {
-        return chunk.magic == "VMPBC1" && chunk.encryptedPayload.size() <= 4096;
+        return chunk.magic == core::kBytecodeMagic && chunk.encryptedPayload.size() <= 4096;
     };
     const auto status = runtime::executeEncryptedChunk(ctx, artifact.chunk, artifact.map, kSeed);
     return {left, right, baselineBehavior(left, right), ctx.returnValue, status};

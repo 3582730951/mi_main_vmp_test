@@ -775,6 +775,31 @@ def check_release_binary_report(root: Path) -> tuple[list[Finding], dict[str, in
     return findings, {"release_binary_reports": 1}
 
 
+def check_surface_minimization_report(root: Path) -> tuple[list[Finding], dict[str, int]]:
+    findings: list[Finding] = []
+    report_path = root / "docs" / "qa" / "reports" / "surface-minimization.json"
+    if not report_path.exists():
+        return [Finding("surface_minimization", "docs/qa/reports/surface-minimization.json", "missing surface minimization report")], {
+            "surface_reports": 0
+        }
+    try:
+        report = json.loads(report_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        return [Finding("surface_minimization", report_path.relative_to(root).as_posix(), f"invalid JSON surface report: {error}")], {
+            "surface_reports": 1
+        }
+    if report.get("schema") != "vmp.qa.surface_minimization.v1":
+        findings.append(Finding("surface_minimization", report_path.relative_to(root).as_posix(), "unexpected surface report schema"))
+    if report.get("status") != "pass":
+        findings.append(Finding("surface_minimization", report_path.relative_to(root).as_posix(), "surface minimization report did not pass"))
+    if report.get("avoidable_surface_findings") != 0:
+        findings.append(Finding("surface_minimization", report_path.relative_to(root).as_posix(), "avoidable protected-surface markers remain"))
+    syscall_policy = report.get("syscall_policy", {})
+    if not isinstance(syscall_policy, dict) or not syscall_policy.get("status"):
+        findings.append(Finding("surface_minimization", report_path.relative_to(root).as_posix(), "missing syscall policy declaration"))
+    return findings, {"surface_reports": 1}
+
+
 def run_once(root: Path) -> dict[str, object]:
     checks = [
         check_task_coverage,
@@ -786,6 +811,7 @@ def run_once(root: Path) -> dict[str, object]:
         check_capability_matrix,
         check_hostile_environment_report,
         check_release_binary_report,
+        check_surface_minimization_report,
     ]
     findings: list[Finding] = []
     metrics: dict[str, int] = {}

@@ -10,6 +10,8 @@
 
 namespace vmp::core {
 
+constexpr std::uint64_t kBytecodeMagic = 0x9de4b1a7c85f2301ULL;
+
 struct Instruction {
     SemanticOpcode op = SemanticOpcode::Nop;
     std::uint8_t dst = 0;
@@ -19,7 +21,7 @@ struct Instruction {
 };
 
 struct BytecodeChunk {
-    std::string magic = "VMPBC1";
+    std::uint64_t magic = kBytecodeMagic;
     std::uint32_t version = 1;
     std::uint32_t vmLevel = 1;
     std::uint64_t functionHash = 0;

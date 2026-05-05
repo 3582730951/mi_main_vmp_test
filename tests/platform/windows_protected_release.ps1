@@ -75,9 +75,9 @@ $sourceList = @(
 
 $exe = Join-Path $BuildDir "protected_release_sample.exe"
 if (Get-Command cl.exe -ErrorAction SilentlyContinue) {
-  & cl.exe /nologo /std:c++17 /EHsc /O2 /I $BuildDir /I src $sourceList /Fe:$exe
+  & cl.exe /nologo /std:c++17 /EHsc /O2 /DVMP_DISABLE_RUNTIME_ENTRY_EXPORTS=1 /Gy /Gw /I $BuildDir /I src $sourceList /link /OPT:REF /OPT:ICF /OUT:$exe
 } elseif (Get-Command g++ -ErrorAction SilentlyContinue) {
-  & g++ -std=c++17 -O2 -I $BuildDir -I src $sourceList -o $exe
+  & g++ -std=c++17 -O2 -DVMP_DISABLE_RUNTIME_ENTRY_EXPORTS=1 -fvisibility=hidden -fdata-sections -ffunction-sections -I $BuildDir -I src $sourceList -Wl,--gc-sections -o $exe
 } else {
   throw "No supported Windows C++ compiler found"
 }
@@ -100,7 +100,11 @@ $forbidden = @(
   "JNI_OnLoad",
   "Java_",
   "dlopen",
-  "dlsym"
+  "dlsym",
+  "VMPBC",
+  "VMPSAM",
+  "VMPIRL",
+  "OLLVM"
 )
 $bytes = [System.IO.File]::ReadAllBytes($exe)
 $text = [System.Text.Encoding]::ASCII.GetString($bytes)
