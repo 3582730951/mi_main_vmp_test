@@ -88,6 +88,10 @@ if (Get-Command cl.exe -ErrorAction SilentlyContinue) {
 if ($LASTEXITCODE -ne 0) {
   exit $LASTEXITCODE
 }
+python scripts/audit/scrub_pe_section_names.py $exe
+if ($LASTEXITCODE -ne 0) {
+  exit $LASTEXITCODE
+}
 
 & $exe
 $protectedExitCode = $LASTEXITCODE

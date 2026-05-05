@@ -46,6 +46,7 @@ exe="$build_dir/protected_release_sample.exe"
   tools/vmp/protected_release_main.cpp \
   -nostdlib -nostartfiles -Wl,--gc-sections -Wl,-e,mainCRTStartup -lkernel32 \
   -o "$exe"
+python3 scripts/audit/scrub_pe_section_names.py "$exe"
 
 "$objdump" -f "$exe" | grep -q 'pei-x86-64'
 "$objdump" -p "$exe" >"$build_dir/protected_release_sample.exe.pe.txt"

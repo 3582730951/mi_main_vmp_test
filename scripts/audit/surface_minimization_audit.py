@@ -35,12 +35,11 @@ def run_tool(args: list[str], cwd: Path) -> tuple[int, str]:
             check=False,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
-            text=True,
             timeout=30,
         )
     except (OSError, subprocess.TimeoutExpired) as error:
         return 127, str(error)
-    return completed.returncode, completed.stdout
+    return completed.returncode, completed.stdout.decode("utf-8", errors="replace")
 
 
 def has_tool(name: str) -> bool:
