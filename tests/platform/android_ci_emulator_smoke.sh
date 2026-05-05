@@ -34,14 +34,6 @@ if ! command -v avdmanager >/dev/null 2>&1; then
   echo "avdmanager is required on PATH" >&2
   exit 51
 fi
-if ! command -v emulator >/dev/null 2>&1; then
-  echo "emulator is required on PATH" >&2
-  exit 52
-fi
-if ! command -v adb >/dev/null 2>&1; then
-  echo "adb is required on PATH" >&2
-  exit 53
-fi
 
 { yes || true; } | sdkmanager --licenses >/dev/null
 sdkmanager \
@@ -54,6 +46,15 @@ sdkmanager \
 
 export ANDROID_NDK_HOME="$sdk_root/ndk/$ndk_version"
 export PATH="$sdk_root/build-tools/$build_tools_version:$PATH"
+
+if ! command -v emulator >/dev/null 2>&1; then
+  echo "emulator is required on PATH after sdkmanager installation" >&2
+  exit 52
+fi
+if ! command -v adb >/dev/null 2>&1; then
+  echo "adb is required on PATH after sdkmanager installation" >&2
+  exit 53
+fi
 
 if ! emulator -list-avds | grep -Fxq "$avd_name"; then
   echo "no" | avdmanager create avd \
@@ -101,9 +102,9 @@ fi
 
 adb shell input keyevent 82 >/dev/null 2>&1 || true
 
-tests/platform/android_environment_check.sh
-tests/platform/android_emulator_smoke.sh
-tests/platform/android_apk_smoke.sh
-tests/platform/android_hostile_trigger_report.sh
+bash tests/platform/android_environment_check.sh
+bash tests/platform/android_emulator_smoke.sh
+bash tests/platform/android_apk_smoke.sh
+bash tests/platform/android_hostile_trigger_report.sh
 
 echo "android CI emulator smoke passed"

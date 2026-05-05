@@ -14,6 +14,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install LLVM 14 toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y llvm-14-dev llvm-14-tools clang-14
+
       - name: Build local protection evidence
         run: |
           bash tests/core/run_core_tests.sh
