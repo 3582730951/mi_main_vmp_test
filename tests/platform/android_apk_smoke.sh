@@ -117,7 +117,7 @@ for native_lib in \
   build/android-x86_64/libvmp_smoke_jni.so \
   build/android-arm64-v8a/libvmp_platform.so \
   build/android-arm64-v8a/libvmp_smoke_jni.so; do
-  python3 scripts/audit/scrub_elf_section_metadata.py "$native_lib"
+  python3 scripts/audit/scrub_elf_section_metadata.py --preserve-size "$native_lib"
 done
 
 apk_root="build/android-apk-smoke"

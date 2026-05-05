@@ -27,6 +27,21 @@ class ElfSectionScrubberTests(unittest.TestCase):
         self.assertNotIn(b".text", scrubbed)
         self.assertNotIn(b".shstrtab", scrubbed)
 
+    def test_can_preserve_file_size_while_zeroing_metadata(self) -> None:
+        data = self._elf64(section_offset=0x100, loaded_size=0x100)
+        data[0x180:0x186] = b".text\0"
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "sample"
+            path.write_bytes(data)
+
+            result = scrub(path, preserve_size=True)
+            scrubbed = path.read_bytes()
+
+        self.assertEqual(result["scrubbed_size"], len(data))
+        self.assertEqual(struct.unpack_from("<Q", scrubbed, 40)[0], 0)
+        self.assertNotIn(b".text", scrubbed)
+        self.assertEqual(scrubbed[0x100:], b"\0" * (len(data) - 0x100))
+
     def test_rejects_section_table_inside_loaded_bytes(self) -> None:
         data = self._elf64(section_offset=0x80, loaded_size=0x100)
         with tempfile.TemporaryDirectory() as tmp:

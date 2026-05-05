@@ -96,7 +96,7 @@ def loaded_file_end(data: bytearray, layout: ElfLayout) -> int:
     return loaded_end
 
 
-def scrub(path: Path) -> dict[str, int | str]:
+def scrub(path: Path, *, preserve_size: bool = False) -> dict[str, int | str | bool]:
     data = bytearray(path.read_bytes())
     layout = parse_layout(data)
     loaded_end = loaded_file_end(data, layout)
@@ -108,24 +108,34 @@ def scrub(path: Path) -> dict[str, int | str]:
     struct.pack_into(layout.prefix + "H", data, layout.shnum_field, 0)
     struct.pack_into(layout.prefix + "H", data, layout.shstrndx_field, 0)
     original_size = len(data)
-    del data[loaded_end:]
+    if preserve_size:
+        data[loaded_end:] = b"\0" * (len(data) - loaded_end)
+    else:
+        del data[loaded_end:]
     path.write_bytes(data)
     return {
         "elf_class": layout.elf_class,
         "loaded_file_end": loaded_end,
         "original_size": original_size,
         "scrubbed_size": len(data),
+        "preserve_size": preserve_size,
     }
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--preserve-size",
+        action="store_true",
+        help="zero non-loaded trailing metadata instead of truncating the file",
+    )
     parser.add_argument("artifact")
     args = parser.parse_args()
-    result = scrub(Path(args.artifact))
+    result = scrub(Path(args.artifact), preserve_size=args.preserve_size)
     print(
         "scrubbed ELF section metadata: "
-        f"class={result['elf_class']} original_size={result['original_size']} scrubbed_size={result['scrubbed_size']}"
+        f"class={result['elf_class']} original_size={result['original_size']} "
+        f"scrubbed_size={result['scrubbed_size']} preserve_size={result['preserve_size']}"
     )
     return 0
 
