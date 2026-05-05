@@ -20,6 +20,8 @@ jobs:
           sudo apt-get install -y binutils llvm-14-dev llvm-14-tools clang-14
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           python3 -m pip install --user --disable-pip-version-check lief flare-capa || true
+          git clone --depth 1 https://github.com/mandiant/capa-rules.git /tmp/capa-rules || true
+          echo "CAPA_RULES=/tmp/capa-rules" >> "$GITHUB_ENV"
 
       - name: Build protection and IR evidence
         run: |

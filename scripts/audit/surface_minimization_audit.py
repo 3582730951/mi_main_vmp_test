@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -123,7 +124,19 @@ def capa_observations(root: Path, artifact: Path) -> dict[str, Any]:
             "status": "unavailable",
             "install_hint": "python3 -m pip install flare-capa",
         }
-    code, output = run_tool(["capa", "-j", str(artifact)], root)
+    args = ["capa"]
+    rules_path = os.environ.get("CAPA_RULES")
+    rule_candidates = [
+        Path(rules_path) if rules_path else None,
+        root / "tools" / "capa-rules",
+        Path("/tmp/capa-rules"),
+    ]
+    for candidate in rule_candidates:
+        if candidate is not None and candidate.exists():
+            args.extend(["-r", str(candidate)])
+            break
+    args.extend(["-j", str(artifact)])
+    code, output = run_tool(args, root)
     if code != 0:
         return {"tool": "capa", "status": "error", "detail": output.strip()[:300]}
     try:
