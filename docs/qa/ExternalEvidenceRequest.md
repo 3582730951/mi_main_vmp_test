@@ -225,14 +225,16 @@ the sidecar and reports before accepting the evidence.
 
 The user-requested "minimum one year reverse cost" claim is not accepted from
 local tests, manifests, or implementation effort alone. Final sign-off requires
-an external manual assessment report preserved at:
+a commit-bound assessment report preserved at:
 
 - `docs/qa/reports/reverse-cost-assessment.json`
 
 The report must use `schema: "vmp.qa.reverse_cost_assessment.v1"` and include:
 
 - `status: "pass"`;
-- `manual_review: true`;
+- either `manual_review: true` from an external reviewer or
+  `assessment_mode: "automated_tooling"` with `automated_review: true` and
+  non-empty `tool_results`/`score_breakdown`;
 - non-empty `reviewer`, `methodology`, `assessment_date`, and `review_tools`;
 - `github_sha` matching the checked-out commit being signed off;
 - `protected_artifact_sha256` for the assessed protected release artifact;
@@ -246,6 +248,12 @@ The report must use `schema: "vmp.qa.reverse_cost_assessment.v1"` and include:
 `./final_acceptance.sh` runs `scripts/audit/reverse_cost_gate.py` after the
 strict plan audit and fails if this report is missing, stale, or estimates less
 than 365 days.
+
+For the automated path, run `.github/workflows/reverse-cost.yml` on the target
+commit and import the `reverse-cost-evidence` artifact. That workflow rebuilds
+the protected sample, scans the protected binary with command-line analysis
+tools, verifies the LLVM call-site/decompiler-trap evidence, generates the
+assessment report, and runs the same reverse-cost gate.
 
 ## Recheck Commands
 

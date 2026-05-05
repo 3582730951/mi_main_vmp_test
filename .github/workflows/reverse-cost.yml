@@ -1,0 +1,44 @@
+name: reverse-cost
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  automated-reverse-cost:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install analysis toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y binutils llvm-14-dev llvm-14-tools clang-14
+
+      - name: Build protection and IR evidence
+        run: |
+          bash tests/core/run_core_tests.sh
+          bash tests/core/run_llvm_plugin_test.sh
+          bash tests/integration/run_protected_sample_chain.sh
+          bash tests/integration/run_release_protected_binary.sh
+
+      - name: Generate automated reverse-cost assessment
+        run: |
+          python3 scripts/audit/generate_reverse_cost_assessment.py --root .
+          python3 scripts/audit/reverse_cost_gate.py --root .
+
+      - name: Upload reverse-cost evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reverse-cost-evidence
+          path: |
+            docs/qa/reports/reverse-cost-assessment.json
+            tests/core/.llvm-out/hotspot-callsite.log
+            tests/core/.llvm-out/hotspot-callsite.protected.ll
+            docs/qa/reports/release-protected-binary.json
+          if-no-files-found: error

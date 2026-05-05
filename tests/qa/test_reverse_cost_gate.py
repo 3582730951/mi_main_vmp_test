@@ -27,6 +27,16 @@ def valid_report() -> dict:
     }
 
 
+def valid_automated_report() -> dict:
+    report = valid_report()
+    report["manual_review"] = False
+    report["assessment_mode"] = "automated_tooling"
+    report["automated_review"] = True
+    report["tool_results"] = [{"tool": "strings", "status": "pass"}]
+    report["score_breakdown"] = {"callsite_graph_distortion": 365}
+    return report
+
+
 class ReverseCostGateTests(unittest.TestCase):
     def test_accepts_valid_current_sha_report(self) -> None:
         self.assertEqual(reverse_cost_gate.validate_report(valid_report(), expected_sha="a" * 40), [])
@@ -46,6 +56,15 @@ class ReverseCostGateTests(unittest.TestCase):
         report["assessed_capabilities"]["per_callsite_thunks"] = False
         errors = reverse_cost_gate.validate_report(report, expected_sha="a" * 40)
         self.assertTrue(any("per_callsite_thunks" in error for error in errors))
+
+    def test_accepts_automated_tooling_report(self) -> None:
+        self.assertEqual(reverse_cost_gate.validate_report(valid_automated_report(), expected_sha="a" * 40), [])
+
+    def test_rejects_automated_report_without_tool_results(self) -> None:
+        report = valid_automated_report()
+        report["tool_results"] = []
+        errors = reverse_cost_gate.validate_report(report, expected_sha="a" * 40)
+        self.assertTrue(any("tool_results" in error for error in errors))
 
 
 if __name__ == "__main__":

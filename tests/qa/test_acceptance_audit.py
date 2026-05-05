@@ -45,7 +45,7 @@ class AcceptanceAuditTests(unittest.TestCase):
     def test_workflows_have_read_only_permissions(self):
         findings, metrics = acceptance_audit.check_workflows(ROOT)
 
-        self.assertEqual(metrics["workflows_scanned"], 6)
+        self.assertEqual(metrics["workflows_scanned"], 7)
         self.assertEqual(findings, [])
 
     def test_pull_request_workflow_secrets_must_be_pr_guarded(self):

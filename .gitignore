@@ -17,4 +17,5 @@ tests/core/.llvm-out/
 tests/integration/.build/
 tests/integration/.release-build/
 docs/qa/reports/*-github-actions-verification.json
+docs/qa/reports/reverse-cost-assessment.json
 *.bundle

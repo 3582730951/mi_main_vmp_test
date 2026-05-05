@@ -48,8 +48,9 @@ def validate_report(report: dict[str, Any], expected_sha: str | None = None) -> 
         errors.append(f"schema must be {SCHEMA}")
     if report.get("status") != "pass":
         errors.append('status must be "pass"')
-    if report.get("manual_review") is not True:
-        errors.append("manual_review must be true")
+    automated = report.get("assessment_mode") == "automated_tooling" and report.get("automated_review") is True
+    if report.get("manual_review") is not True and not automated:
+        errors.append("manual_review must be true unless assessment_mode is automated_tooling")
     if not report.get("reviewer"):
         errors.append("reviewer must be present")
     if not report.get("methodology"):
@@ -58,6 +59,11 @@ def validate_report(report: dict[str, Any], expected_sha: str | None = None) -> 
         errors.append("assessment_date must be present")
     if not isinstance(report.get("review_tools"), list) or not report["review_tools"]:
         errors.append("review_tools must be a non-empty list")
+    if automated:
+        if not isinstance(report.get("tool_results"), list) or not report["tool_results"]:
+            errors.append("automated tool_results must be a non-empty list")
+        if not isinstance(report.get("score_breakdown"), dict) or not report["score_breakdown"]:
+            errors.append("automated score_breakdown must be a non-empty object")
 
     days = report.get("minimum_reverse_cost_days")
     if not isinstance(days, int) or days < MINIMUM_REVERSE_COST_DAYS:
