@@ -1,6 +1,6 @@
 {
   "avoidable_surface_findings": 0,
-  "generated_at_utc": "2026-05-05T07:01:35.249354Z",
+  "generated_at_utc": "2026-05-05T07:20:23.095488Z",
   "missing_artifacts": [],
   "policy_note": "Mandatory executable-container signatures are observed, not treated as removable. This gate fails on avoidable product, VM, OLLVM, protected plaintext, and explicit import-resolver markers.",
   "scanned_artifacts": [
@@ -97,14 +97,13 @@
       "passed": true,
       "pe_observations": {
         "export_directory_present": false,
-        "import_count": 41,
+        "import_count": 1,
         "import_dlls": [
-          "KERNEL32.dll",
-          "msvcrt.dll"
+          "KERNEL32.dll"
         ],
         "note": "PE headers and CRT TLS/import directories are mandatory container/runtime observations; avoidable product markers are reported as findings.",
         "status": "observed",
-        "tls_directory_present": true,
+        "tls_directory_present": false,
         "tool": "objdump"
       }
     }

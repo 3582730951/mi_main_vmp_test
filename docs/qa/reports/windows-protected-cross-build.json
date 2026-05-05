@@ -1,6 +1,6 @@
 {
   "artifact": "build/windows-protected-cross/protected_release_sample.exe",
-  "artifact_bytes": 16384,
+  "artifact_bytes": 4608,
   "blocking_note": "Generated protected PE artifact is local cross-build evidence only; GitHub Actions Windows execution is still required for hard acceptance.",
   "ci_execution": false,
   "embedded_sample": "build/windows-protected-cross/protected_sample.vmp",
@@ -8,6 +8,14 @@
   "forbidden_plaintext_hits": [],
   "local_cross_compile": true,
   "pe_format": "pei-x86-64",
+  "pe_observations": {
+    "export_directory_present": false,
+    "import_count": 1,
+    "import_dlls": [
+      "KERNEL32.dll"
+    ],
+    "tls_directory_present": false
+  },
   "schema": "vmp.platform.windows_protected_cross_build.v1",
   "status": "partial"
 }

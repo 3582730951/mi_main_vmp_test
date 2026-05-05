@@ -3,6 +3,34 @@
 #include <cstddef>
 #include <cstdint>
 
+#if defined(_WIN32) && defined(VMP_FREESTANDING_WINDOWS_ENTRY)
+extern "C" void *memset(void *dest, int value, std::size_t count) {
+  auto *out = static_cast<std::uint8_t *>(dest);
+  for (std::size_t i = 0; i < count; ++i) {
+    out[i] = static_cast<std::uint8_t>(value);
+  }
+  return dest;
+}
+
+extern "C" void *memcpy(void *dest, const void *src, std::size_t count) {
+  auto *out = static_cast<std::uint8_t *>(dest);
+  const auto *in = static_cast<const std::uint8_t *>(src);
+  for (std::size_t i = 0; i < count; ++i) {
+    out[i] = in[i];
+  }
+  return dest;
+}
+
+extern "C" void __main() {}
+
+#if defined(_MSC_VER)
+#define VMP_STDCALL __stdcall
+#else
+#define VMP_STDCALL __attribute__((stdcall))
+#endif
+extern "C" __declspec(dllimport) void VMP_STDCALL ExitProcess(unsigned int exitCode);
+#endif
+
 namespace {
 
 constexpr std::uint64_t kBytecodeMagic = 0x9de4b1a7c85f2301ULL;
@@ -53,16 +81,16 @@ enum SemanticOpcode : std::uint8_t {
 };
 
 struct Artifact {
-  std::uint32_t version = 0;
-  std::uint32_t vmLevel = 0;
-  std::uint64_t functionHash = 0;
-  std::uint64_t platformSalt = 0;
-  std::uint64_t nonce = 0;
-  std::uint64_t authTag = 0;
-  std::uint8_t encode[OpCount]{};
-  std::uint8_t decode[256]{};
-  const std::uint8_t *payload = nullptr;
-  std::uint32_t payloadSize = 0;
+  std::uint32_t version;
+  std::uint32_t vmLevel;
+  std::uint64_t functionHash;
+  std::uint64_t platformSalt;
+  std::uint64_t nonce;
+  std::uint64_t authTag;
+  std::uint8_t encode[OpCount];
+  std::uint8_t decode[256];
+  const std::uint8_t *payload;
+  std::uint32_t payloadSize;
 };
 
 std::uint64_t mix64(std::uint64_t value) {
@@ -264,8 +292,8 @@ bool executeCase(const Artifact &artifact, std::uint64_t left, std::uint64_t rig
 
 } // namespace
 
-int main() {
-  Artifact artifact;
+int protectedReleaseMain() {
+  Artifact artifact{};
   if (!parseArtifact(artifact)) {
     return 40;
   }
@@ -276,3 +304,13 @@ int main() {
   passed += executeCase(artifact, 0xffffffffULL, 0x55aa55aaULL) ? 1 : 0;
   return passed == 4 ? 0 : 30 + passed;
 }
+
+#if defined(_WIN32) && defined(VMP_FREESTANDING_WINDOWS_ENTRY)
+extern "C" void mainCRTStartup() {
+  ExitProcess(static_cast<unsigned int>(protectedReleaseMain()));
+}
+#else
+int main() {
+  return protectedReleaseMain();
+}
+#endif

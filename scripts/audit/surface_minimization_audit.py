@@ -7,6 +7,7 @@ import argparse
 import importlib.util
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -220,10 +221,10 @@ def pe_observations(root: Path, artifact: Path) -> dict[str, Any]:
             tls_directory_present = len(parts) >= 4 and parts[3] != "00000000"
         if stripped.startswith("DLL Name:"):
             import_dlls.append(stripped.removeprefix("DLL Name:").strip())
-        if in_import_table and "\t" in line and len(stripped.split()) >= 3:
-            name = stripped.split()[-1]
-            if name and name not in {"Name", "Bound-To"}:
-                imported_names.append(name)
+        if in_import_table:
+            parts = stripped.split()
+            if len(parts) == 3 and re.fullmatch(r"[0-9a-fA-F]+", parts[0]) and parts[1].isdigit():
+                imported_names.append(parts[2])
     return {
         "tool": "objdump",
         "status": "observed",
