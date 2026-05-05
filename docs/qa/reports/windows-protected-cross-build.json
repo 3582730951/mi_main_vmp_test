@@ -1,6 +1,6 @@
 {
   "artifact": "build/windows-protected-cross/protected_release_sample.exe",
-  "artifact_bytes": 4608,
+  "artifact_bytes": 8704,
   "blocking_note": "Generated protected PE artifact is local cross-build evidence only; GitHub Actions Windows execution is still required for hard acceptance.",
   "ci_execution": false,
   "embedded_sample": "build/windows-protected-cross/protected_sample.vmp",

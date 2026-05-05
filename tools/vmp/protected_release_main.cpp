@@ -255,7 +255,7 @@ bool executeCase(const Artifact &artifact, std::uint64_t left, std::uint64_t rig
   if ((artifact.payloadSize % kInstructionSize) != 0) {
     return false;
   }
-  std::uint8_t plain[kMaxPayloadBytes]{};
+  static std::uint8_t plain[kMaxPayloadBytes];
   decryptPayload(artifact, plain);
 
   std::uint64_t regs[16]{};

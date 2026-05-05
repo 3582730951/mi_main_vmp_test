@@ -90,8 +90,10 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 & $exe
-if ($LASTEXITCODE -ne 0) {
-  exit $LASTEXITCODE
+$protectedExitCode = $LASTEXITCODE
+Write-Host "windows protected release exit=$protectedExitCode"
+if ($protectedExitCode -ne 0) {
+  exit $protectedExitCode
 }
 
 $forbidden = @(
