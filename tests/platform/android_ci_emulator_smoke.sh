@@ -8,12 +8,15 @@ avd_name="${ANDROID_AVD_NAME:-vmp_api${api_level}_x86_64}"
 ndk_version="${ANDROID_NDK_VERSION:-26.3.11579264}"
 build_tools_version="${ANDROID_BUILD_TOOLS_VERSION:-35.0.1}"
 emulator_log="${ANDROID_EMULATOR_LOG:-build/android-emulator.log}"
+avd_home="${ANDROID_AVD_HOME:-$PWD/build/android-avd}"
 
 export ANDROID_HOME="$sdk_root"
 export ANDROID_SDK_ROOT="$sdk_root"
+export ANDROID_AVD_HOME="$avd_home"
 export PATH="$sdk_root/cmdline-tools/latest/bin:$sdk_root/emulator:$sdk_root/platform-tools:$sdk_root/build-tools/$build_tools_version:$PATH"
 
 mkdir -p "$(dirname "$emulator_log")"
+mkdir -p "$ANDROID_AVD_HOME"
 
 cleanup() {
   adb emu kill >/dev/null 2>&1 || true
