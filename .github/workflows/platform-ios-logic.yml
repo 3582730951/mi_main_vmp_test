@@ -5,6 +5,8 @@ on:
     paths:
       - "src/platform/**"
       - "tests/platform/**"
+      - "tests/qa/test_macho_metadata_audit.py"
+      - "scripts/audit/macho_metadata_audit.py"
       - "docs/platform/**"
       - ".github/workflows/platform-ios-logic.yml"
   workflow_dispatch:
@@ -31,6 +33,23 @@ jobs:
             -DCMAKE_BUILD_TYPE=Release
           cmake --build build/ios-logic --config Release
 
+      - name: Audit iOS Mach-O metadata
+        run: |
+          IOS_LIB="$(find build/ios-logic -name 'libvmp_platform.a' -type f | head -n 1)"
+          test -n "$IOS_LIB"
+          python3 scripts/audit/macho_metadata_audit.py \
+            --root . \
+            --artifact "$IOS_LIB" \
+            --output docs/qa/reports/ios-macho-metadata.json
+
       - name: Signing placeholder
         run: |
           echo "Signing assets are available only through GitHub Secrets and are not printed."
+
+      - name: Upload iOS metadata evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-macho-metadata
+          path: docs/qa/reports/ios-macho-metadata.json
+          if-no-files-found: warn

@@ -18,4 +18,6 @@ if grep -R --line-number -E 'mmap\(.*PROT_EXEC|mprotect\(.*PROT_EXEC' src/platfo
   exit 51
 fi
 
+python3 -m unittest tests.qa.test_macho_metadata_audit
+
 echo "ios logical acceptance passed"

@@ -9,6 +9,9 @@
 - T124: Signing happens after protection, packaging, and symbol map generation.
 - T125: Crash maps are emitted as sidecars that map protected offsets to protection reports.
 - T126: Current acceptance is logical review plus macOS build/static checks; physical-device execution is out of scope for this batch.
+- T127: GitHub Actions emits `ios-macho-metadata` evidence from
+  `scripts/audit/macho_metadata_audit.py`, using a built-in Mach-O/fat/ar parser
+  plus optional `otool`, `llvm-objdump`, and LIEF observations when available.
 
 ## Signing Flow
 
@@ -21,6 +24,11 @@
 ## Constraints
 
 The design assumes no runtime executable-memory generation, no private entitlement dependency, and no mutation after code signing.
+
+Mach-O metadata minimization is report-only in this batch. Segment names, load
+commands, symbol tables, and code-signature records are observed because mutating
+them can break linking, loading, or Apple signing. Strict mode exists only for
+controlled experiments.
 
 References:
 
