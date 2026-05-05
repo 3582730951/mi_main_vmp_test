@@ -221,6 +221,32 @@ provisional in-run marker. The strict completion audit rechecks the final run
 through the live GitHub Actions API, downloads the named artifact, and verifies
 the sidecar and reports before accepting the evidence.
 
+## Required Reverse-Cost Evidence
+
+The user-requested "minimum one year reverse cost" claim is not accepted from
+local tests, manifests, or implementation effort alone. Final sign-off requires
+an external manual assessment report preserved at:
+
+- `docs/qa/reports/reverse-cost-assessment.json`
+
+The report must use `schema: "vmp.qa.reverse_cost_assessment.v1"` and include:
+
+- `status: "pass"`;
+- `manual_review: true`;
+- non-empty `reviewer`, `methodology`, `assessment_date`, and `review_tools`;
+- `github_sha` matching the checked-out commit being signed off;
+- `protected_artifact_sha256` for the assessed protected release artifact;
+- `minimum_reverse_cost_days` greater than or equal to `365`;
+- `assessed_capabilities` with these booleans set to `true`:
+  `automatic_hotspot_analysis`, `defense_floor_preserved`,
+  `callsite_obfuscation`, `per_callsite_thunks`,
+  `protected_function_address_not_materialized`, `decompiler_traps`, and
+  `randomized_stack_backtrace`.
+
+`./final_acceptance.sh` runs `scripts/audit/reverse_cost_gate.py` after the
+strict plan audit and fails if this report is missing, stale, or estimates less
+than 365 days.
+
 ## Recheck Commands
 
 After importing the external reports/artifacts into the workspace, run:

@@ -35,3 +35,23 @@ platforms:
   ios:
     no_jit: true
     metadata_policy: reduce
+hotspot_analysis:
+  enabled: true
+  call_site_threshold: 3
+  hot_vm_level: 1
+  defense_floor: 1
+callsite_obfuscation:
+  enabled: true
+  indirect_thunks: true
+  hash_resolver: true
+  jump_table: true
+  per_callsite_thunks: true
+  hide_exports: false
+decompiler_traps:
+  enabled: true
+  intensity: 1
+random_stack_backtrace:
+  randomized: true
+  min_interval_ms: 250
+  jitter_ms: 750
+  max_frames: 16

@@ -92,6 +92,24 @@ void ProtectionConfig::validate() const {
     if (!isAllowedRootPolicy(antiAnalysis.rootOrJailbreak)) {
         throw std::invalid_argument("root_or_jailbreak must be false, true, or platform");
     }
+    if (hotspot.callSiteThreshold < 1) {
+        throw std::invalid_argument("hotspot_analysis.call_site_threshold must be positive");
+    }
+    if (hotspot.hotVmLevel < 1 || hotspot.hotVmLevel > 3) {
+        throw std::invalid_argument("hotspot_analysis.hot_vm_level must be 1, 2, or 3");
+    }
+    if (hotspot.defenseFloor < 1 || hotspot.defenseFloor > 3) {
+        throw std::invalid_argument("hotspot_analysis.defense_floor must be 1, 2, or 3");
+    }
+    if (hotspot.hotVmLevel < hotspot.defenseFloor) {
+        throw std::invalid_argument("hotspot_analysis.hot_vm_level must not be below defense_floor");
+    }
+    if (decompilerTraps.intensity < 1) {
+        throw std::invalid_argument("decompiler_traps.intensity must be positive");
+    }
+    if (stackBacktrace.randomized && stackBacktrace.maxFrames < 1) {
+        throw std::invalid_argument("random_stack_backtrace.max_frames must be positive");
+    }
     for (const auto &fn : functions) {
         if (fn.name.empty()) {
             throw std::invalid_argument("function name must not be empty");
@@ -127,7 +145,10 @@ ProtectionConfig parseProtectionConfigText(std::string_view text) {
             continue;
         }
 
-        if (indent == 0 && (line == "functions:" || line == "targets:" || line == "ollvm:" || line == "platforms:")) {
+        if (indent == 0 && (line == "functions:" || line == "targets:" || line == "ollvm:" ||
+                            line == "hotspot_analysis:" || line == "callsite_obfuscation:" ||
+                            line == "decompiler_traps:" || line == "random_stack_backtrace:" ||
+                            line == "platforms:")) {
             section = line.substr(0, line.size() - 1);
             currentFunction = nullptr;
             nestedSection.clear();
@@ -170,6 +191,7 @@ ProtectionConfig parseProtectionConfigText(std::string_view text) {
                 currentFunction->match = value;
             } else if (key == "vm_level") {
                 currentFunction->vmLevel = parseU32(value);
+                currentFunction->explicitVmLevel = true;
             } else if (key == "protect") {
                 currentFunction->protect = parseBool(value);
             } else {
@@ -183,6 +205,7 @@ ProtectionConfig parseProtectionConfigText(std::string_view text) {
                     currentFunction->match = value;
                 } else if (key == "vm_level") {
                     currentFunction->vmLevel = parseU32(value);
+                    currentFunction->explicitVmLevel = true;
                 } else if (key == "protect") {
                     currentFunction->protect = parseBool(value);
                 } else {
@@ -233,6 +256,56 @@ ProtectionConfig parseProtectionConfigText(std::string_view text) {
                 config.ollvm.constStringEncryption = parseBool(value);
             } else {
                 throw std::invalid_argument("unsupported ollvm field: " + key);
+            }
+        } else if (section == "hotspot_analysis") {
+            if (key == "enabled") {
+                config.hotspot.enabled = parseBool(value);
+            } else if (key == "call_site_threshold") {
+                config.hotspot.callSiteThreshold = parseU32(value);
+            } else if (key == "hot_vm_level") {
+                config.hotspot.hotVmLevel = parseU32(value);
+            } else if (key == "defense_floor") {
+                config.hotspot.defenseFloor = parseU32(value);
+            } else if (key == "preserve_explicit_vm_level") {
+                config.hotspot.preserveExplicitVmLevel = parseBool(value);
+            } else {
+                throw std::invalid_argument("unsupported hotspot_analysis field: " + key);
+            }
+        } else if (section == "callsite_obfuscation") {
+            if (key == "enabled") {
+                config.callsiteObfuscation.enabled = parseBool(value);
+            } else if (key == "indirect_thunks") {
+                config.callsiteObfuscation.indirectThunks = parseBool(value);
+            } else if (key == "hash_resolver") {
+                config.callsiteObfuscation.hashResolver = parseBool(value);
+            } else if (key == "jump_table") {
+                config.callsiteObfuscation.jumpTable = parseBool(value);
+            } else if (key == "per_callsite_thunks") {
+                config.callsiteObfuscation.perCallsiteThunks = parseBool(value);
+            } else if (key == "hide_exports") {
+                config.callsiteObfuscation.hideExports = parseBool(value);
+            } else {
+                throw std::invalid_argument("unsupported callsite_obfuscation field: " + key);
+            }
+        } else if (section == "decompiler_traps") {
+            if (key == "enabled") {
+                config.decompilerTraps.enabled = parseBool(value);
+            } else if (key == "intensity") {
+                config.decompilerTraps.intensity = parseU32(value);
+            } else {
+                throw std::invalid_argument("unsupported decompiler_traps field: " + key);
+            }
+        } else if (section == "random_stack_backtrace") {
+            if (key == "randomized" || key == "enabled") {
+                config.stackBacktrace.randomized = parseBool(value);
+            } else if (key == "min_interval_ms") {
+                config.stackBacktrace.minIntervalMs = parseU32(value);
+            } else if (key == "jitter_ms") {
+                config.stackBacktrace.jitterMs = parseU32(value);
+            } else if (key == "max_frames") {
+                config.stackBacktrace.maxFrames = parseU32(value);
+            } else {
+                throw std::invalid_argument("unsupported random_stack_backtrace field: " + key);
             }
         } else if (section == "platforms") {
             continue;

@@ -1082,6 +1082,7 @@
 ; CHECK: !vmp.pipeline.stages =
 ; CHECK: !{!"vmp-config-load"}
 ; CHECK: !{!"vmp-function-marker"}
+; CHECK: !{!"vmp-hotspot-policy"}
 ; CHECK: !{!"vmp-ir-normalize"}
 ; CHECK: !{!"vmp-block-split"}
 ; CHECK: !{!"vmp-flatten"}

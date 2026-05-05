@@ -1,8 +1,10 @@
 # Final Sign-Off
 
-Status: **signed off**.
+Status: **blocked pending reverse-cost assessment**.
 
-Strict completion audit: pass.
+Strict completion audit: pass for the existing external evidence set, but the
+current final gate also requires a commit-bound reverse-cost assessment report
+with `minimum_reverse_cost_days >= 365`.
 
 | Gate | Evidence |
 |---|---|
@@ -13,6 +15,7 @@ Strict completion audit: pass.
 | IDA/OllyDbg review | `docs/qa/reports/ida-ollydbg-github-actions-verification.json` |
 | VMProtect-tier review | `docs/qa/reports/vmprotect-tier-github-actions-verification.json` |
 | Aggregate hostile environment | `docs/qa/reports/hostile-environment.json` |
+| Reverse-cost assessment | `docs/qa/reports/reverse-cost-assessment.json` |
 
 Open vulnerabilities: 0
-Open findings: 0
+Open findings: 1 pending external reverse-cost evidence

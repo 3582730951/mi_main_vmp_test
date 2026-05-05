@@ -21,6 +21,7 @@ from .string_policy import (
     StringScannerPolicy,
     StringScanResult,
 )
+from .stack_backtrace import RandomizedBacktracePolicy, RandomizedBacktraceSampler, StackFrameSummary
 
 __all__ = [
     "CostController",
@@ -39,4 +40,7 @@ __all__ = [
     "ScanFinding",
     "StringScannerPolicy",
     "StringScanResult",
+    "RandomizedBacktracePolicy",
+    "RandomizedBacktraceSampler",
+    "StackFrameSummary",
 ]

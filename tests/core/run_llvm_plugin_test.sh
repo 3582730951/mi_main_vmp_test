@@ -19,7 +19,7 @@ if [[ ! -f "${PLUGIN}" ]]; then
   exit 20
 fi
 
-PIPELINE="vmp-config-load,vmp-function-marker,vmp-ir-normalize,vmp-block-split,vmp-flatten,vmp-bogus-branch,vmp-instruction-substitution,vmp-const-string-encryption,vmp-ir-to-bytecode,vmp-opcode-randomize,vmp-bytecode-encrypt,vmp-nesting,vmp-anti-analysis-hooks,vmp-function-replacement,vmp-report"
+PIPELINE="vmp-config-load,vmp-function-marker,vmp-hotspot-policy,vmp-ir-normalize,vmp-block-split,vmp-flatten,vmp-bogus-branch,vmp-instruction-substitution,vmp-const-string-encryption,vmp-ir-to-bytecode,vmp-opcode-randomize,vmp-bytecode-encrypt,vmp-nesting,vmp-anti-analysis-hooks,vmp-function-replacement,vmp-report"
 
 opt-14 \
   -load-pass-plugin "${PLUGIN}" \
@@ -28,7 +28,7 @@ opt-14 \
   -o "${OUT_DIR}/sample.protected.ll" \
   2>"${OUT_DIR}/plugin.log"
 
-grep -Fxq 'VMPPassPlugin report: selected_functions=73 lowered_functions=56 replaced_functions=56 unsupported_functions=17 stages=15' "${OUT_DIR}/plugin.log"
+grep -Fxq 'VMPPassPlugin report: selected_functions=73 lowered_functions=56 replaced_functions=56 unsupported_functions=17 stages=16' "${OUT_DIR}/plugin.log"
 sed -n 's/^VMPPassPlugin stage_manifest_json: //p' "${OUT_DIR}/plugin.log" >"${OUT_DIR}/vmp-stage-manifest.json"
 python3 - "${OUT_DIR}/vmp-stage-manifest.json" <<'PY'
 import json
@@ -36,9 +36,9 @@ import sys
 manifest = json.load(open(sys.argv[1], encoding="utf-8"))
 assert manifest["schema"] == "vmp.llvm.stage_manifest.v1"
 pipeline = manifest["pipeline"]
-assert pipeline["executed_count"] == 15
-assert pipeline["implemented_count"] == 7
-assert pipeline["placeholder_noop_count"] == 7
+assert pipeline["executed_count"] == 16
+assert pipeline["implemented_count"] == 9
+assert pipeline["placeholder_noop_count"] == 6
 assert pipeline["report_only_count"] == 1
 stages = {stage["name"]: stage for stage in manifest["stages"]}
 for name in (
@@ -48,15 +48,19 @@ for name in (
     "vmp-opcode-randomize",
     "vmp-bytecode-encrypt",
     "vmp-nesting",
-    "vmp-anti-analysis-hooks",
 ):
     assert stages[name]["kind"] == "placeholder_noop"
     assert stages[name]["implemented"] is False
     assert stages[name]["capability_effects"] == []
 assert stages["vmp-config-load"]["kind"] == "config"
 assert stages["vmp-config-load"]["implemented"] is True
+assert stages["vmp-hotspot-policy"]["implemented"] is True
+assert "performance.hotspot_static_policy" in stages["vmp-hotspot-policy"]["capability_effects"]
+assert stages["vmp-anti-analysis-hooks"]["implemented"] is True
+assert "anti_analysis.decompiler_traps" in stages["vmp-anti-analysis-hooks"]["capability_effects"]
 assert stages["vmp-ir-to-bytecode"]["implemented"] is True
 assert "code_virtualization.bytecode_lowering" in stages["vmp-ir-to-bytecode"]["capability_effects"]
+assert "callsite_obfuscation.per_callsite_thunks" in stages["vmp-function-replacement"]["capability_effects"]
 PY
 FileCheck-14 --input-file="${OUT_DIR}/sample.protected.ll" "${ROOT_DIR}/tests/core/fixtures/sample-protected.check"
 if grep -q '@vmp.bytecode.secret_side_effect' "${OUT_DIR}/sample.protected.ll"; then
@@ -230,7 +234,7 @@ opt-14 \
   -S "${ROOT_DIR}/tests/core/fixtures/opaque-name-spoof.ll" \
   -o "${OUT_DIR}/opaque-name-spoof.protected.ll" \
   2>"${OUT_DIR}/opaque-name-spoof.log"
-grep -Fxq 'VMPPassPlugin report: selected_functions=1 lowered_functions=0 replaced_functions=0 unsupported_functions=1 stages=15' "${OUT_DIR}/opaque-name-spoof.log"
+grep -Fxq 'VMPPassPlugin report: selected_functions=1 lowered_functions=0 replaced_functions=0 unsupported_functions=1 stages=16' "${OUT_DIR}/opaque-name-spoof.log"
 FileCheck-14 --check-prefix=OPAQUE-SPOOF --input-file="${OUT_DIR}/opaque-name-spoof.protected.ll" "${ROOT_DIR}/tests/core/fixtures/opaque-name-spoof.ll"
 if grep -Fq '@vmp.bytecode.secret_opaque_name_spoof' "${OUT_DIR}/opaque-name-spoof.protected.ll"; then
   echo "spoofed opaque-false branch was materialized as bytecode" >&2
@@ -252,7 +256,7 @@ opt-14 \
   -S "${ROOT_DIR}/tests/core/fixtures/runtime-entry-collision.ll" \
   -o "${OUT_DIR}/runtime-entry-collision.protected.ll" \
   2>"${OUT_DIR}/runtime-entry-collision.log"
-grep -Fxq 'VMPPassPlugin report: selected_functions=4 lowered_functions=0 replaced_functions=0 unsupported_functions=4 stages=15' "${OUT_DIR}/runtime-entry-collision.log"
+grep -Fxq 'VMPPassPlugin report: selected_functions=4 lowered_functions=0 replaced_functions=0 unsupported_functions=4 stages=16' "${OUT_DIR}/runtime-entry-collision.log"
 FileCheck-14 --check-prefix=RUNTIME-COLLISION --input-file="${OUT_DIR}/runtime-entry-collision.protected.ll" "${ROOT_DIR}/tests/core/fixtures/runtime-entry-collision.ll"
 if grep -Fq '@vmp.bytecode.secret_runtime_entry_body_collision' "${OUT_DIR}/runtime-entry-collision.protected.ll"; then
   echo "runtime-entry body collision was materialized as bytecode" >&2
@@ -372,6 +376,98 @@ if [[ "$(bytecode_global_hash "${OUT_DIR}/config-vm1.protected.ll")" == "$(bytec
 fi
 opt-14 -S -passes=verify "${OUT_DIR}/config-vm1.protected.ll" -o /dev/null
 opt-14 -S -passes=verify "${OUT_DIR}/config-vm3.protected.ll" -o /dev/null
+
+cat >"${OUT_DIR}/hotspot-callsite.ll" <<'LLVM'
+; ModuleID = 'hotspot-callsite'
+source_filename = "hotspot-callsite.c"
+
+define i32 @secret_hot(i32 %x) {
+entry:
+  %sum = add i32 %x, 7
+  ret i32 %sum
+}
+
+define i32 @caller_a(i32 %x) {
+entry:
+  %first = call i32 @secret_hot(i32 %x)
+  %second = call i32 @secret_hot(i32 %first)
+  ret i32 %second
+}
+
+define i32 @caller_b(i32 %x) {
+entry:
+  %out = call i32 @secret_hot(i32 %x)
+  ret i32 %out
+}
+LLVM
+cat >"${OUT_DIR}/hotspot-callsite.yml" <<'YAML'
+profile: hardened
+seed: "hotspot-seed"
+vm_level: 3
+hotspot_analysis:
+  enabled: true
+  call_site_threshold: 2
+  hot_vm_level: 1
+  defense_floor: 1
+callsite_obfuscation:
+  enabled: true
+  indirect_thunks: true
+  hash_resolver: true
+  jump_table: true
+  per_callsite_thunks: true
+  hide_exports: true
+decompiler_traps:
+  enabled: true
+  intensity: 2
+random_stack_backtrace:
+  randomized: true
+  min_interval_ms: 10
+  jitter_ms: 30
+  max_frames: 8
+YAML
+VMP_PROTECT_CONFIG="${OUT_DIR}/hotspot-callsite.yml" opt-14 \
+  -load-pass-plugin "${PLUGIN}" \
+  -passes="${PIPELINE}" \
+  -S "${OUT_DIR}/hotspot-callsite.ll" \
+  -o "${OUT_DIR}/hotspot-callsite.protected.ll" \
+  2>"${OUT_DIR}/hotspot-callsite.log"
+grep -Fxq 'VMPPassPlugin hotspot: function=secret_hot call_sites=3 vm_level=1' "${OUT_DIR}/hotspot-callsite.log"
+grep -Fxq 'VMPPassPlugin callsite_obfuscation: rewritten_calls=3' "${OUT_DIR}/hotspot-callsite.log"
+grep -Fxq 'VMPPassPlugin callsite_obfuscation: unique_thunks=3' "${OUT_DIR}/hotspot-callsite.log"
+grep -Fxq 'VMPPassPlugin report: selected_functions=1 lowered_functions=1 replaced_functions=1 unsupported_functions=0 stages=16' "${OUT_DIR}/hotspot-callsite.log"
+grep -Fq 'vm_levels=secret_hot:1' "${OUT_DIR}/hotspot-callsite.log"
+grep -Eq '^define hidden i32 @secret_hot' "${OUT_DIR}/hotspot-callsite.protected.ll"
+grep -Fq '!vmp.hotspot' "${OUT_DIR}/hotspot-callsite.protected.ll"
+grep -Fq '!vmp.vm_level' "${OUT_DIR}/hotspot-callsite.protected.ll"
+grep -Fq '!vmp.decompiler.trap' "${OUT_DIR}/hotspot-callsite.protected.ll"
+grep -Fq 'vmp.decompiler.trap:' "${OUT_DIR}/hotspot-callsite.protected.ll"
+grep -Fq 'switch i32 0' "${OUT_DIR}/hotspot-callsite.protected.ll"
+grep -Eq 'define internal i32 @vmp\.call\.thunk\.[0-9a-f]{16}' "${OUT_DIR}/hotspot-callsite.protected.ll"
+grep -Eq 'define internal i8\* @vmp\.call\.resolve\.[0-9a-f]{16}' "${OUT_DIR}/hotspot-callsite.protected.ll"
+grep -Eq '@vmp\.call\.slot\.[0-9a-f]{16} = private unnamed_addr constant' "${OUT_DIR}/hotspot-callsite.protected.ll"
+if [ "$(grep -Ec '^define internal i32 @vmp\.call\.thunk\.[0-9a-f]{16}' "${OUT_DIR}/hotspot-callsite.protected.ll")" -ne 3 ]; then
+  echo "per-callsite thunk count mismatch" >&2
+  exit 69
+fi
+if [ "$(grep -Ec '^define internal i8\* @vmp\.call\.resolve\.[0-9a-f]{16}' "${OUT_DIR}/hotspot-callsite.protected.ll")" -ne 3 ]; then
+  echo "per-callsite resolver count mismatch" >&2
+  exit 70
+fi
+if [ "$(grep -Ec '^@vmp\.call\.slot\.[0-9a-f]{16} = private unnamed_addr constant' "${OUT_DIR}/hotspot-callsite.protected.ll")" -ne 3 ]; then
+  echo "per-callsite jump slot count mismatch" >&2
+  exit 71
+fi
+grep -Eq 'call i32 @vmp_runtime_entry_i32_i32\(i8\* %vmp\.resolved\.i8, i64 [0-9]+, i32 %0\)' "${OUT_DIR}/hotspot-callsite.protected.ll"
+grep -Fq '!vmp.anti_analysis.policy' "${OUT_DIR}/hotspot-callsite.protected.ll"
+if grep -Eq 'call i32 @secret_hot' "${OUT_DIR}/hotspot-callsite.protected.ll"; then
+  echo "direct protected callsite was not obfuscated" >&2
+  exit 68
+fi
+if grep -Eq '(bitcast|ptrtoint) \(i32 \(i32\)\* @secret_hot|constant i32 \(i32\)\* @secret_hot' "${OUT_DIR}/hotspot-callsite.protected.ll"; then
+  echo "protected function address leaked through callsite thunk materialization" >&2
+  exit 72
+fi
+opt-14 -S -passes=verify "${OUT_DIR}/hotspot-callsite.protected.ll" -o /dev/null
 
 clang++-14 -std=c++17 -O2 -I "${ROOT_DIR}/src" \
   "${OUT_DIR}/sample.protected.ll" \

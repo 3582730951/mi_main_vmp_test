@@ -74,6 +74,26 @@ functions:
   - name: add_secret
     vm_level: 3
     protect: true
+hotspot_analysis:
+  enabled: true
+  call_site_threshold: 2
+  hot_vm_level: 1
+  defense_floor: 1
+callsite_obfuscation:
+  enabled: true
+  indirect_thunks: true
+  hash_resolver: true
+  jump_table: true
+  per_callsite_thunks: true
+  hide_exports: true
+decompiler_traps:
+  enabled: true
+  intensity: 2
+random_stack_backtrace:
+  randomized: true
+  min_interval_ms: 10
+  jitter_ms: 30
+  max_frames: 8
 )cfg");
 
     require(config.profile == "hardened", "profile parse failed");
@@ -85,6 +105,16 @@ functions:
     const auto fn = config.findFunction("add_secret");
     require(fn.has_value(), "function selector missing");
     require(fn->vmLevel == 3, "function vm_level parse failed");
+    require(fn->explicitVmLevel, "function explicit vm_level marker missing");
+    require(config.hotspot.enabled, "hotspot policy parse failed");
+    require(config.hotspot.callSiteThreshold == 2, "hotspot threshold parse failed");
+    require(config.hotspot.hotVmLevel == 1, "hotspot vm_level parse failed");
+    require(config.callsiteObfuscation.enabled, "callsite obfuscation parse failed");
+    require(config.callsiteObfuscation.hashResolver, "callsite hash resolver parse failed");
+    require(config.callsiteObfuscation.perCallsiteThunks, "callsite per-site thunk parse failed");
+    require(config.callsiteObfuscation.hideExports, "callsite export hiding parse failed");
+    require(config.decompilerTraps.enabled && config.decompilerTraps.intensity == 2, "decompiler trap parse failed");
+    require(config.stackBacktrace.randomized && config.stackBacktrace.maxFrames == 8, "stack backtrace parse failed");
 
     const auto explicitVm1 = core::parseProtectionConfigText(R"cfg(
 profile: hardened
@@ -118,6 +148,12 @@ void testConfigParserAcceptsFrozenProtectSpec() {
     require(byFunctionName->vmLevel == 3, "target vm_level parse failed");
     require(config.ollvm.blockSplit == 1, "target split parse failed");
     require(config.ollvm.instructionSubstitution == 1, "target substitution parse failed");
+    require(config.hotspot.enabled && config.hotspot.callSiteThreshold == 3, "spec hotspot parse failed");
+    require(config.callsiteObfuscation.enabled && config.callsiteObfuscation.hashResolver &&
+                config.callsiteObfuscation.perCallsiteThunks,
+            "spec callsite parse failed");
+    require(config.decompilerTraps.enabled, "spec decompiler trap parse failed");
+    require(config.stackBacktrace.randomized && config.stackBacktrace.maxFrames == 16, "spec stack backtrace parse failed");
 }
 
 void testConfigValidationRejectsUnsafeValues() {
@@ -148,6 +184,21 @@ targets:
         rejectedRootPolicy = true;
     }
     require(rejectedRootPolicy, "invalid root_or_jailbreak policy should be rejected");
+
+    bool rejectedWeakHotspot = false;
+    try {
+        (void)core::parseProtectionConfigText(R"cfg(
+profile: hardened
+seed: "unit-seed"
+hotspot_analysis:
+  enabled: true
+  hot_vm_level: 1
+  defense_floor: 2
+)cfg");
+    } catch (const std::invalid_argument &) {
+        rejectedWeakHotspot = true;
+    }
+    require(rejectedWeakHotspot, "hotspot policy must not weaken below defense floor");
 }
 
 void testOpcodeDeterminism() {

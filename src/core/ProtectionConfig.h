@@ -29,7 +29,37 @@ struct FunctionProtection {
     std::string name;
     std::string match;
     std::uint32_t vmLevel = 0;
+    bool explicitVmLevel = false;
     bool protect = true;
+};
+
+struct HotspotPolicy {
+    bool enabled = false;
+    std::uint32_t callSiteThreshold = 3;
+    std::uint32_t hotVmLevel = 1;
+    std::uint32_t defenseFloor = 1;
+    bool preserveExplicitVmLevel = true;
+};
+
+struct CallsiteObfuscationOptions {
+    bool enabled = false;
+    bool indirectThunks = true;
+    bool hashResolver = true;
+    bool jumpTable = true;
+    bool perCallsiteThunks = true;
+    bool hideExports = false;
+};
+
+struct DecompilerTrapOptions {
+    bool enabled = false;
+    std::uint32_t intensity = 1;
+};
+
+struct StackBacktracePolicy {
+    bool randomized = false;
+    std::uint32_t minIntervalMs = 250;
+    std::uint32_t jitterMs = 750;
+    std::uint32_t maxFrames = 16;
 };
 
 struct ProtectionConfig {
@@ -40,6 +70,10 @@ struct ProtectionConfig {
     bool antiDebugHooks = false;
     AntiAnalysisOptions antiAnalysis;
     OllvmStrength ollvm;
+    HotspotPolicy hotspot;
+    CallsiteObfuscationOptions callsiteObfuscation;
+    DecompilerTrapOptions decompilerTraps;
+    StackBacktracePolicy stackBacktrace;
     std::vector<FunctionProtection> functions;
 
     std::optional<FunctionProtection> findFunction(std::string_view name) const;

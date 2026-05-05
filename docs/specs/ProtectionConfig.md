@@ -42,6 +42,26 @@ platforms:
   ios:
     no_jit: true
     metadata_policy: reduce
+hotspot_analysis:
+  enabled: true
+  call_site_threshold: 2
+  hot_vm_level: 1
+  defense_floor: 1
+callsite_obfuscation:
+  enabled: true
+  indirect_thunks: true
+  hash_resolver: true
+  jump_table: true
+  per_callsite_thunks: true
+  hide_exports: true
+decompiler_traps:
+  enabled: true
+  intensity: 2
+random_stack_backtrace:
+  randomized: true
+  min_interval_ms: 250
+  jitter_ms: 750
+  max_frames: 16
 ```
 
 ## Required Fields
@@ -55,6 +75,35 @@ platforms:
 | `targets[].name` | string | Stable report name. |
 | `targets[].match` | string | Function selector. Initial supported format is `function:<symbol-or-ir-name>`. |
 | `targets[].vm_level` | integer | `1`, `2`, or `3`. |
+
+## Automatic Hotspot Policy
+
+`hotspot_analysis` enables static call-site counting in the LLVM pass. A selected
+function whose direct call-site count reaches `call_site_threshold` is tagged as
+`!vmp.hotspot`. When the function does not have an explicit per-function
+`vm_level`, the pass may use `hot_vm_level`, but never below `defense_floor`.
+Explicit `targets[].vm_level` values are preserved by default, so a security
+critical function remains at its configured strength even when it is hot.
+
+## Call-Site Obfuscation
+
+`callsite_obfuscation` rewrites direct calls to replaced protected functions
+through private hash-named thunks. For VM-replaced functions, the thunks resolve
+the protected bytecode payload through a hash-keyed resolver and private jump
+slot, then enter the VM runtime directly instead of materializing the protected
+function address at the call site.
+`per_callsite_thunks` gives each rewritten call site a distinct thunk,
+resolver key, and jump slot, so repeated calls to the same protected function do
+not collapse to one obvious call-graph hub.
+`hide_exports` sets protected functions to hidden visibility where the platform
+linkage permits it; ABI owners should keep public exports out of this mode.
+
+## Decompiler And Stack Traps
+
+`decompiler_traps` inserts opaque false branches and switch-shaped dead blocks
+around runtime-entry stubs. `random_stack_backtrace` configures passive,
+jittered stack-summary sampling for anti-analysis policy code; captured frames
+are sanitized metadata and must not be logged with secrets.
 
 ## OLLVM Options
 

@@ -13,6 +13,9 @@ The implementation is policy-only and passive by design.
   hardware breakpoint, memory breakpoint, injection, root, and hook indicators.
 - T143: cost controls so high-cost checks are rate-limited by trigger point and
   frequency.
+- Randomized stack-backtrace sampling is passive and bounded; it captures
+  sanitized frame metadata at jittered intervals without printing or enforcing
+  by itself.
 
 ## Safety Boundary
 
@@ -32,4 +35,6 @@ Allowed response actions are limited to:
 Release artifacts pass the string policy only when protected strings have zero
 findings. Environment detections are accepted only as typed findings from
 caller-provided observations. Cost control must prevent repeated high-cost checks
-from running more frequently than the configured budget.
+from running more frequently than the configured budget. Backtrace sampling is
+accepted only when tests prove it waits until its randomized due time, caps frame
+count, and rejects invalid timing budgets.

@@ -53,6 +53,7 @@ docs/qa/reports/hostile-environment.json
 docs/qa/reports/ida-ollydbg-review.json
 docs/qa/reports/ida-ollydbg-github-actions-verification.json
 docs/qa/reports/production-crypto-key-management.json
+docs/qa/reports/reverse-cost-assessment.json
 docs/qa/reports/vmprotect-tier-review.json
 docs/qa/reports/vmprotect-tier-github-actions-verification.json
 docs/qa/reports/windows-acceptance.json
@@ -74,4 +75,5 @@ done
 
 restore_all
 
+python3 scripts/audit/reverse_cost_gate.py --root .
 python3 scripts/audit/plan_completion_audit.py --root . --write-doc --json

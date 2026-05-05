@@ -9,6 +9,7 @@
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Instructions.h"
+#include "llvm/IR/Intrinsics.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/MDBuilder.h"
 #include "llvm/IR/Module.h"
@@ -24,6 +25,7 @@
 #include <cstdlib>
 #include <cstdint>
 #include <exception>
+#include <iomanip>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -35,9 +37,10 @@ namespace {
 
 constexpr StringLiteral kPluginVersion = "0.1.0";
 
-constexpr std::array<StringLiteral, 15> kPipelineStages = {
+constexpr std::array<StringLiteral, 16> kPipelineStages = {
     "vmp-config-load",
     "vmp-function-marker",
+    "vmp-hotspot-policy",
     "vmp-ir-normalize",
     "vmp-block-split",
     "vmp-flatten",
@@ -101,12 +104,43 @@ std::uint64_t seedHashForConfig(const vmp::core::ProtectionConfig &Config) {
     return vmp::core::stableHash64(Config.seed);
 }
 
+std::optional<std::uint32_t> metadataVmLevelForFunction(const Function &F) {
+    MDNode *Node = F.getMetadata("vmp.vm_level");
+    if (Node == nullptr || Node->getNumOperands() != 1) {
+        return std::nullopt;
+    }
+    auto *Value = dyn_cast<ConstantAsMetadata>(Node->getOperand(0));
+    if (Value == nullptr) {
+        return std::nullopt;
+    }
+    auto *Level = dyn_cast<ConstantInt>(Value->getValue());
+    if (Level == nullptr) {
+        return std::nullopt;
+    }
+    const auto Parsed = static_cast<std::uint32_t>(Level->getZExtValue());
+    if (Parsed < 1 || Parsed > 3) {
+        return std::nullopt;
+    }
+    return Parsed;
+}
+
 std::uint32_t vmLevelForFunction(const vmp::core::ProtectionConfig &Config, const Function &F) {
+    if (auto MetadataLevel = metadataVmLevelForFunction(F)) {
+        return *MetadataLevel;
+    }
     const std::string Name = F.getName().str();
     if (const auto FunctionConfig = Config.findFunction(Name)) {
         return FunctionConfig->vmLevel;
     }
     return Config.vmLevel;
+}
+
+bool functionHasExplicitVmLevel(const vmp::core::ProtectionConfig &Config, const Function &F) {
+    const std::string Name = F.getName().str();
+    if (const auto FunctionConfig = Config.findFunction(Name)) {
+        return FunctionConfig->explicitVmLevel;
+    }
+    return false;
 }
 
 bool isKnownStage(StringRef Name) {
@@ -125,7 +159,13 @@ StringRef stageKind(StringRef Name) {
     if (Name == "vmp-function-marker") {
         return "selector";
     }
+    if (Name == "vmp-hotspot-policy") {
+        return "analysis";
+    }
     if (Name == "vmp-block-split" || Name == "vmp-bogus-branch" || Name == "vmp-instruction-substitution") {
+        return "transform";
+    }
+    if (Name == "vmp-anti-analysis-hooks") {
         return "transform";
     }
     if (Name == "vmp-ir-to-bytecode") {
@@ -164,6 +204,56 @@ bool shouldMarkFunction(const Function &F) {
 
 bool isSelectedFunction(const Function &F) {
     return !F.isDeclaration() && F.getMetadata("vmp.protect") != nullptr;
+}
+
+std::string hex64(std::uint64_t Value) {
+    std::ostringstream Out;
+    Out << std::hex << std::setw(16) << std::setfill('0') << Value;
+    return Out.str();
+}
+
+unsigned directCallSiteCount(const Function &Target) {
+    unsigned Count = 0;
+    for (const User *User : Target.users()) {
+        if (isa<CallInst>(User)) {
+            ++Count;
+        }
+    }
+    return Count;
+}
+
+void setVmLevelMetadata(Function &F, std::uint32_t VmLevel) {
+    LLVMContext &Ctx = F.getContext();
+    auto *Value = ConstantInt::get(Type::getInt32Ty(Ctx), VmLevel);
+    F.setMetadata("vmp.vm_level", MDNode::get(Ctx, ConstantAsMetadata::get(Value)));
+}
+
+bool applyHotspotPolicy(Module &M) {
+    const auto &Config = activeConfig();
+    if (!Config.hotspot.enabled) {
+        return false;
+    }
+
+    bool Changed = false;
+    LLVMContext &Ctx = M.getContext();
+    const std::uint32_t HotVmLevel = std::max(Config.hotspot.hotVmLevel, Config.hotspot.defenseFloor);
+    for (Function &F : M) {
+        if (!isSelectedFunction(F)) {
+            continue;
+        }
+        const unsigned Calls = directCallSiteCount(F);
+        if (Calls < Config.hotspot.callSiteThreshold) {
+            continue;
+        }
+        F.setMetadata("vmp.hotspot", MDNode::get(Ctx, MDString::get(Ctx, "static-callsite-threshold")));
+        if (!(Config.hotspot.preserveExplicitVmLevel && functionHasExplicitVmLevel(Config, F))) {
+            setVmLevelMetadata(F, HotVmLevel);
+        }
+        errs() << "VMPPassPlugin hotspot: function=" << F.getName() << " call_sites=" << Calls
+               << " vm_level=" << vmLevelForFunction(Config, F) << "\n";
+        Changed = true;
+    }
+    return Changed;
 }
 
 void recordStage(Module &M, StringRef StageName) {
@@ -1533,6 +1623,9 @@ void clearVmpProtectionMetadata(Function &F) {
     F.setMetadata("vmp.lowering", nullptr);
     F.setMetadata("vmp.replaced", nullptr);
     F.setMetadata("vmp.unsupported", nullptr);
+    F.setMetadata("vmp.hotspot", nullptr);
+    F.setMetadata("vmp.vm_level", nullptr);
+    F.setMetadata("vmp.decompiler.trap", nullptr);
 }
 
 bool materializeBytecodeGlobals(Module &M) {
@@ -1617,6 +1710,302 @@ void sanitizeOutlineCloneCollision(Function &F) {
     }
 }
 
+void emitDecompilerTrapGuard(Function &F, BasicBlock *RealEntry) {
+    LLVMContext &Ctx = F.getContext();
+    BasicBlock *Entry = BasicBlock::Create(Ctx, "vmp.entry", &F, RealEntry);
+    BasicBlock *Trap = BasicBlock::Create(Ctx, "vmp.decompiler.trap", &F, RealEntry);
+    BasicBlock *Poison = BasicBlock::Create(Ctx, "vmp.decompiler.poison", &F, RealEntry);
+
+    IRBuilder<> EntryBuilder(Entry);
+    EntryBuilder.CreateCondBr(buildOpaqueFalse(F, EntryBuilder), Trap, RealEntry);
+
+    IRBuilder<> TrapBuilder(Trap);
+    auto *Switch = TrapBuilder.CreateSwitch(ConstantInt::get(Type::getInt32Ty(Ctx), 0), RealEntry, 1);
+    Switch->addCase(ConstantInt::get(Type::getInt32Ty(Ctx), 1), Poison);
+
+    IRBuilder<> PoisonBuilder(Poison);
+    PoisonBuilder.CreateUnreachable();
+    F.setMetadata("vmp.decompiler.trap", MDNode::get(Ctx, MDString::get(Ctx, "opaque-switch-trap")));
+}
+
+GlobalVariable *bytecodeGlobalFromMetadata(Function &Target) {
+    MDNode *Node = Target.getMetadata("vmp.bytecode");
+    if (Node == nullptr || Node->getNumOperands() != 1) {
+        return nullptr;
+    }
+    auto *Value = dyn_cast<ValueAsMetadata>(Node->getOperand(0));
+    if (Value == nullptr) {
+        return nullptr;
+    }
+    return dyn_cast<GlobalVariable>(Value->getValue());
+}
+
+bool metadataStringEquals(const GlobalObject &Object, StringRef Kind, StringRef Expected) {
+    MDNode *Node = Object.getMetadata(Kind);
+    if (Node == nullptr || Node->getNumOperands() != 1) {
+        return false;
+    }
+    auto *Value = dyn_cast<MDString>(Node->getOperand(0));
+    return Value != nullptr && Value->getString() == Expected;
+}
+
+std::string callsiteMetadataTag(const Function &Target, std::uint64_t Hash,
+                                const vmp::core::ProtectionConfig &Config) {
+    if (!Config.callsiteObfuscation.perCallsiteThunks) {
+        return Target.getName().str();
+    }
+    return (Target.getName() + ":" + hex64(Hash)).str();
+}
+
+std::uint64_t callsiteThunkHash(const vmp::core::ProtectionConfig &Config, const Function &Target,
+                                const CallInst &Call, unsigned CallsiteIndex) {
+    if (!Config.callsiteObfuscation.perCallsiteThunks) {
+        return vmp::core::stableHash64(Target.getName().str());
+    }
+    const Function *Caller = Call.getFunction();
+    std::string Material = Config.seed;
+    Material += ":";
+    Material += Target.getName().str();
+    Material += ":";
+    Material += Caller == nullptr ? "<module>" : Caller->getName().str();
+    Material += ":";
+    Material += std::to_string(CallsiteIndex);
+    return vmp::core::stableHash64(Material);
+}
+
+Function *getOrCreateCallResolver(Module &M, GlobalVariable &Bytecode, std::uint64_t Hash,
+                                  StringRef CallsiteTag) {
+    LLVMContext &Ctx = M.getContext();
+    const std::string Name = "vmp.call.resolve." + hex64(Hash);
+    auto *ResolverTy = FunctionType::get(Type::getInt8PtrTy(Ctx), {Type::getInt64Ty(Ctx)}, false);
+    if (GlobalValue *ExistingValue = M.getNamedValue(Name)) {
+        auto *Existing = dyn_cast<Function>(ExistingValue);
+        if (Existing == nullptr || Existing->getFunctionType() != ResolverTy ||
+            !Existing->hasInternalLinkage() ||
+            !metadataStringEquals(*Existing, "vmp.callsite.resolver", CallsiteTag)) {
+            return nullptr;
+        }
+        return Existing;
+    }
+
+    auto *Resolver = Function::Create(ResolverTy, GlobalValue::InternalLinkage, Name, M);
+    Resolver->setDSOLocal(true);
+    Resolver->setMetadata("vmp.callsite.resolver", MDNode::get(Ctx, MDString::get(Ctx, CallsiteTag)));
+
+    BasicBlock *Entry = BasicBlock::Create(Ctx, "entry", Resolver);
+    BasicBlock *Hit = BasicBlock::Create(Ctx, "hit", Resolver);
+    BasicBlock *Miss = BasicBlock::Create(Ctx, "miss", Resolver);
+
+    IRBuilder<> B(Entry);
+    auto *Switch = B.CreateSwitch(&*Resolver->arg_begin(), Miss, 1);
+    Switch->addCase(ConstantInt::get(Type::getInt64Ty(Ctx), Hash), Hit);
+
+    IRBuilder<> HitBuilder(Hit);
+    HitBuilder.CreateRet(HitBuilder.CreatePointerCast(&Bytecode, Type::getInt8PtrTy(Ctx), "vmp.call.bytecode"));
+
+    IRBuilder<> MissBuilder(Miss);
+    MissBuilder.CreateRet(ConstantPointerNull::get(Type::getInt8PtrTy(Ctx)));
+    return Resolver;
+}
+
+GlobalVariable *getOrCreateCallJumpSlot(Module &M, GlobalVariable &Bytecode, std::uint64_t Hash,
+                                        StringRef CallsiteTag) {
+    const std::string Name = "vmp.call.slot." + hex64(Hash);
+    if (GlobalValue *ExistingValue = M.getNamedValue(Name)) {
+        auto *Existing = dyn_cast<GlobalVariable>(ExistingValue);
+        if (Existing == nullptr || Existing->getValueType() != Bytecode.getType() || !Existing->isConstant() ||
+            !Existing->hasPrivateLinkage() || Existing->getInitializer() != &Bytecode ||
+            !metadataStringEquals(*Existing, "vmp.callsite.jump_table", CallsiteTag)) {
+            return nullptr;
+        }
+        return Existing;
+    }
+    auto *Slot = new GlobalVariable(M, Bytecode.getType(), true, GlobalValue::PrivateLinkage, &Bytecode, Name);
+    Slot->setUnnamedAddr(GlobalValue::UnnamedAddr::Global);
+    Slot->setAlignment(Align(1));
+    Slot->setMetadata("vmp.callsite.jump_table", MDNode::get(M.getContext(), MDString::get(M.getContext(), CallsiteTag)));
+    return Slot;
+}
+
+Function *getOrCreateCallThunk(Module &M, Function &Target, const vmp::core::ProtectionConfig &Config,
+                               std::uint64_t Hash) {
+    GlobalVariable *Bytecode = bytecodeGlobalFromMetadata(Target);
+    if (Bytecode == nullptr) {
+        return nullptr;
+    }
+    auto *BytecodeArrayTy = dyn_cast<ArrayType>(Bytecode->getValueType());
+    if (BytecodeArrayTy == nullptr) {
+        return nullptr;
+    }
+    Function *RuntimeEntry = getOrCreateRuntimeEntry(M, Target);
+    if (RuntimeEntry == nullptr) {
+        return nullptr;
+    }
+
+    const std::string CallsiteTag = callsiteMetadataTag(Target, Hash, Config);
+    const std::string Name = "vmp.call.thunk." + hex64(Hash);
+    if (GlobalValue *ExistingValue = M.getNamedValue(Name)) {
+        auto *Existing = dyn_cast<Function>(ExistingValue);
+        if (Existing == nullptr || Existing->getFunctionType() != Target.getFunctionType() ||
+            !Existing->hasInternalLinkage() ||
+            !metadataStringEquals(*Existing, "vmp.callsite.thunk", CallsiteTag)) {
+            return nullptr;
+        }
+        return Existing;
+    }
+
+    Function *Resolver = nullptr;
+    if (Config.callsiteObfuscation.hashResolver) {
+        Resolver = getOrCreateCallResolver(M, *Bytecode, Hash, CallsiteTag);
+        if (Resolver == nullptr) {
+            return nullptr;
+        }
+    }
+
+    GlobalVariable *Slot = nullptr;
+    if (Config.callsiteObfuscation.jumpTable) {
+        Slot = getOrCreateCallJumpSlot(M, *Bytecode, Hash, CallsiteTag);
+        if (Slot == nullptr) {
+            return nullptr;
+        }
+    }
+
+    LLVMContext &Ctx = M.getContext();
+    auto *Thunk = Function::Create(Target.getFunctionType(), GlobalValue::InternalLinkage, Name, M);
+    Thunk->setDSOLocal(true);
+    Thunk->setMetadata("vmp.callsite.thunk", MDNode::get(Ctx, MDString::get(Ctx, CallsiteTag)));
+
+    BasicBlock *Entry = BasicBlock::Create(Ctx, "entry", Thunk);
+    BasicBlock *Trap = BasicBlock::Create(Ctx, "resolver.miss", Thunk);
+    BasicBlock *Call = BasicBlock::Create(Ctx, "call", Thunk);
+    IRBuilder<> B(Entry);
+
+    Value *Resolved = nullptr;
+    if (Config.callsiteObfuscation.hashResolver) {
+        Resolved = B.CreateCall(Resolver, ConstantInt::get(Type::getInt64Ty(Ctx), Hash), "vmp.resolved.i8");
+    } else {
+        Resolved = B.CreatePointerCast(Bytecode, Type::getInt8PtrTy(Ctx), "vmp.resolved.i8");
+    }
+
+    if (Config.callsiteObfuscation.jumpTable) {
+        Value *SlotValue = B.CreateLoad(Bytecode->getType(), Slot, "vmp.jump.slot");
+        Value *SlotAsI8 = B.CreatePointerCast(SlotValue, Type::getInt8PtrTy(Ctx), "vmp.jump.slot.i8");
+        Value *Mix = B.CreatePtrToInt(SlotAsI8, Type::getInt64Ty(Ctx), "vmp.jump.mix");
+        Value *Mask = B.CreateICmpNE(Mix, ConstantInt::get(Type::getInt64Ty(Ctx), 0), "vmp.jump.nonnull");
+        Value *ResolvedNonNull = B.CreateICmpNE(Resolved, ConstantPointerNull::get(Type::getInt8PtrTy(Ctx)), "vmp.resolved.nonnull");
+        Value *Ok = B.CreateAnd(Mask, ResolvedNonNull, "vmp.callsite.ok");
+        B.CreateCondBr(Ok, Call, Trap);
+    } else {
+        Value *Ok = B.CreateICmpNE(Resolved, ConstantPointerNull::get(Type::getInt8PtrTy(Ctx)), "vmp.resolved.nonnull");
+        B.CreateCondBr(Ok, Call, Trap);
+    }
+
+    IRBuilder<> TrapBuilder(Trap);
+    Function *TrapIntrinsic = Intrinsic::getDeclaration(&M, Intrinsic::trap);
+    TrapBuilder.CreateCall(TrapIntrinsic);
+    TrapBuilder.CreateUnreachable();
+
+    IRBuilder<> CallBuilder(Call);
+    SmallVector<Value *, 6> Args;
+    Args.push_back(Resolved);
+    Args.push_back(ConstantInt::get(Type::getInt64Ty(Ctx), BytecodeArrayTy->getNumElements()));
+    for (Argument &Arg : Thunk->args()) {
+        Args.push_back(&Arg);
+    }
+    CallInst *RuntimeCall = CallBuilder.CreateCall(RuntimeEntry, Args,
+                                                   Target.getReturnType()->isVoidTy() ? "" : "vmp.callsite.result");
+    if (Target.getReturnType()->isVoidTy()) {
+        CallBuilder.CreateRetVoid();
+    } else {
+        CallBuilder.CreateRet(RuntimeCall);
+    }
+    return Thunk;
+}
+
+bool obfuscateProtectedCallSites(Module &M) {
+    const auto &Config = activeConfig();
+    if (!Config.callsiteObfuscation.enabled || !Config.callsiteObfuscation.indirectThunks) {
+        return false;
+    }
+
+    SmallPtrSet<Function *, 16> Targets;
+    for (Function &F : M) {
+        if (isSelectedFunction(F) && F.getMetadata("vmp.replaced") != nullptr) {
+            Targets.insert(&F);
+            if (Config.callsiteObfuscation.hideExports) {
+                F.setVisibility(GlobalValue::HiddenVisibility);
+                F.setDSOLocal(true);
+            }
+        }
+    }
+
+    SmallVector<CallInst *, 16> Calls;
+    for (Function &F : M) {
+        if (F.getName().startswith("vmp.call.")) {
+            continue;
+        }
+        for (BasicBlock &BB : F) {
+            for (Instruction &I : BB) {
+                auto *Call = dyn_cast<CallInst>(&I);
+                if (Call == nullptr) {
+                    continue;
+                }
+                Function *Callee = Call->getCalledFunction();
+                if (Callee != nullptr && Targets.contains(Callee)) {
+                    Calls.push_back(Call);
+                }
+            }
+        }
+    }
+
+    unsigned RewrittenCalls = 0;
+    unsigned CallsiteIndex = 0;
+    SmallPtrSet<Function *, 16> UniqueThunks;
+    for (CallInst *Call : Calls) {
+        Function *Target = Call->getCalledFunction();
+        const std::uint64_t Hash = callsiteThunkHash(Config, *Target, *Call, CallsiteIndex++);
+        Function *Thunk = getOrCreateCallThunk(M, *Target, Config, Hash);
+        if (Thunk == nullptr) {
+            continue;
+        }
+        IRBuilder<> B(Call);
+        SmallVector<Value *, 4> Args;
+        for (Value *Arg : Call->args()) {
+            Args.push_back(Arg);
+        }
+        CallInst *Replacement = B.CreateCall(Thunk, Args, Call->getType()->isVoidTy() ? "" : "vmp.callsite.result");
+        Replacement->setCallingConv(Call->getCallingConv());
+        if (!Call->getType()->isVoidTy()) {
+            Call->replaceAllUsesWith(Replacement);
+        }
+        Call->eraseFromParent();
+        ++RewrittenCalls;
+        UniqueThunks.insert(Thunk);
+    }
+
+    if (RewrittenCalls != 0) {
+        errs() << "VMPPassPlugin callsite_obfuscation: rewritten_calls=" << RewrittenCalls << "\n";
+        errs() << "VMPPassPlugin callsite_obfuscation: unique_thunks=" << UniqueThunks.size() << "\n";
+    }
+    return RewrittenCalls != 0;
+}
+
+bool recordAntiAnalysisPolicy(Module &M) {
+    const auto &Config = activeConfig();
+    if (!Config.decompilerTraps.enabled && !Config.stackBacktrace.randomized) {
+        return false;
+    }
+    LLVMContext &Ctx = M.getContext();
+    NamedMDNode *Policy = M.getOrInsertNamedMetadata("vmp.anti_analysis.policy");
+    std::string Record = "decompiler_traps=";
+    Record += Config.decompilerTraps.enabled ? "true" : "false";
+    Record += ";random_stack_backtrace=";
+    Record += Config.stackBacktrace.randomized ? "true" : "false";
+    Record += ";stack_max_frames=" + std::to_string(Config.stackBacktrace.maxFrames);
+    Policy->addOperand(MDNode::get(Ctx, MDString::get(Ctx, Record)));
+    return true;
+}
+
 bool replaceWithRuntimeStub(Module &M) {
     bool Changed = false;
     LLVMContext &Ctx = M.getContext();
@@ -1630,6 +2019,8 @@ bool replaceWithRuntimeStub(Module &M) {
 
     for (Function *F : Targets) {
         MDNode *Protected = F->getMetadata("vmp.protect");
+        MDNode *Hotspot = F->getMetadata("vmp.hotspot");
+        MDNode *VmLevel = F->getMetadata("vmp.vm_level");
         MDNode *BytecodeMetadata = F->getMetadata("vmp.bytecode");
         if (!supportsReplacementStub(*F)) {
             if (BytecodeMetadata != nullptr || F->getMetadata("vmp.lowering") != nullptr ||
@@ -1669,8 +2060,12 @@ bool replaceWithRuntimeStub(Module &M) {
         MDNode *FreshBytecodeMetadata = MDNode::get(Ctx, BytecodeOps);
         outlineOriginalBody(*F);
         F->deleteBody();
-        BasicBlock *Entry = BasicBlock::Create(Ctx, "vmp.entry", F);
-        IRBuilder<> B(Entry);
+        BasicBlock *RuntimeEntryBlock = BasicBlock::Create(
+            Ctx, Config.decompilerTraps.enabled ? "vmp.vm.entry" : "vmp.entry", F);
+        if (Config.decompilerTraps.enabled) {
+            emitDecompilerTrapGuard(*F, RuntimeEntryBlock);
+        }
+        IRBuilder<> B(RuntimeEntryBlock);
         Value *BytecodePtr = B.CreatePointerCast(Bytecode, Type::getInt8PtrTy(Ctx), "vmp.bytecode.ptr");
         SmallVector<Value *, 3> Args;
         Args.push_back(BytecodePtr);
@@ -1682,12 +2077,15 @@ bool replaceWithRuntimeStub(Module &M) {
         Value *Result = B.CreateCall(RuntimeEntry, Args, "vmp.vm.result");
         B.CreateRet(Result);
         F->setMetadata("vmp.protect", Protected);
+        F->setMetadata("vmp.hotspot", Hotspot);
+        F->setMetadata("vmp.vm_level", VmLevel);
         F->setMetadata("vmp.bytecode", FreshBytecodeMetadata);
         F->setMetadata("vmp.lowering", MDNode::get(Ctx, MDString::get(Ctx, kLoweringName)));
         F->setMetadata("vmp.replaced", MDNode::get(Ctx, MDString::get(Ctx, "runtime-entry-stub")));
         F->setMetadata("vmp.unsupported", nullptr);
         Changed = true;
     }
+    Changed |= obfuscateProtectedCallSites(M);
     return Changed;
 }
 
@@ -1705,6 +2103,10 @@ PreservedAnalyses runStage(Module &M, StringRef StageName) {
         return PreservedAnalyses::none();
     }
 
+    if (StageName == "vmp-hotspot-policy") {
+        return applyHotspotPolicy(M) ? PreservedAnalyses::none() : PreservedAnalyses::all();
+    }
+
     if (StageName == "vmp-block-split") {
         return splitProtectedBlocks(M) ? PreservedAnalyses::none() : PreservedAnalyses::all();
     }
@@ -1719,6 +2121,10 @@ PreservedAnalyses runStage(Module &M, StringRef StageName) {
 
     if (StageName == "vmp-ir-to-bytecode") {
         return materializeBytecodeGlobals(M) ? PreservedAnalyses::none() : PreservedAnalyses::all();
+    }
+
+    if (StageName == "vmp-anti-analysis-hooks") {
+        return recordAntiAnalysisPolicy(M) ? PreservedAnalyses::none() : PreservedAnalyses::all();
     }
 
     if (StageName == "vmp-function-replacement") {
@@ -1801,9 +2207,14 @@ PreservedAnalyses runStage(Module &M, StringRef StageName) {
             if (Stage == "vmp-ir-to-bytecode") {
                 errs() << "\"code_virtualization.bytecode_lowering\"";
             } else if (Stage == "vmp-function-replacement") {
-                errs() << "\"code_virtualization.runtime_replacement\"";
+                errs() << "\"code_virtualization.runtime_replacement\",\"callsite_obfuscation.indirect_thunks\","
+                          "\"callsite_obfuscation.per_callsite_thunks\"";
             } else if (Stage == "vmp-bogus-branch" || Stage == "vmp-instruction-substitution") {
                 errs() << "\"mutation_obfuscation.local_transform\"";
+            } else if (Stage == "vmp-hotspot-policy") {
+                errs() << "\"performance.hotspot_static_policy\"";
+            } else if (Stage == "vmp-anti-analysis-hooks") {
+                errs() << "\"anti_analysis.decompiler_traps\",\"anti_analysis.random_stack_backtrace_policy\"";
             }
             errs() << "]}";
         }
