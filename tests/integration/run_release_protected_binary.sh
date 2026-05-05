@@ -11,7 +11,7 @@ SAMPLE_COPY="${BUILD_DIR}/protected_sample.vmp"
 
 mkdir -p "${BUILD_DIR}" "${ARTIFACT_DIR}" "$(dirname "${REPORT_PATH}")"
 
-"${ROOT_DIR}/tests/integration/run_protected_sample_chain.sh" >/dev/null
+bash "${ROOT_DIR}/tests/integration/run_protected_sample_chain.sh" >/dev/null
 cp "${ROOT_DIR}/samples/protected_chain/out/protected_sample.vmp" "${SAMPLE_COPY}"
 
 python3 - "${SAMPLE_COPY}" "${HEADER_PATH}" <<'PY'

@@ -23,7 +23,7 @@ if ! command -v adb >/dev/null 2>&1; then
 fi
 
 if [[ "${RUN_ANDROID_EMULATOR_SMOKE:-0}" == "1" ]]; then
-  exec tests/platform/android_emulator_smoke.sh
+  exec bash tests/platform/android_emulator_smoke.sh
 fi
 
 echo "Android emulator acceptance plan:"

@@ -23,7 +23,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y binutils
 
       - name: Build and run Linux smoke
-        run: tests/platform/linux_smoke.sh
+        run: bash tests/platform/linux_smoke.sh
 
       - name: Hardening metadata
         run: |

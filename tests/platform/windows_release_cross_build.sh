@@ -17,7 +17,7 @@ fi
 
 mkdir -p "$build_dir" "$(dirname "$report_path")"
 
-tests/integration/run_protected_sample_chain.sh >/dev/null
+bash tests/integration/run_protected_sample_chain.sh >/dev/null
 sample_copy="$build_dir/protected_sample.vmp"
 cp samples/protected_chain/out/protected_sample.vmp "$sample_copy"
 

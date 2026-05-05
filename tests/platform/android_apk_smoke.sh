@@ -73,7 +73,7 @@ cmake -S src/platform -B build/android-arm64-v8a \
   -DCMAKE_BUILD_TYPE=Release >/dev/null
 cmake --build build/android-arm64-v8a --target vmp_platform -j2 >/dev/null
 
-tests/integration/run_protected_sample_chain.sh >/dev/null
+bash tests/integration/run_protected_sample_chain.sh >/dev/null
 
 generated_dir="build/android-apk-generated"
 generated_header="$generated_dir/protected_sample_blob.h"

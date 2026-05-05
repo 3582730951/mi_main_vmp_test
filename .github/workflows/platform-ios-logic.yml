@@ -20,7 +20,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Logical acceptance
-        run: tests/platform/ios_logic_check.sh
+        run: bash tests/platform/ios_logic_check.sh
 
       - name: Build iOS adapter for simulator
         run: |
