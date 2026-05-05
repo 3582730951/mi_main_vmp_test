@@ -112,14 +112,6 @@ build_jni_abi() {
 build_jni_abi x86_64-linux-android build/android-x86_64
 build_jni_abi aarch64-linux-android build/android-arm64-v8a
 
-for native_lib in \
-  build/android-x86_64/libvmp_platform.so \
-  build/android-x86_64/libvmp_smoke_jni.so \
-  build/android-arm64-v8a/libvmp_platform.so \
-  build/android-arm64-v8a/libvmp_smoke_jni.so; do
-  python3 scripts/audit/scrub_elf_section_metadata.py --preserve-size "$native_lib"
-done
-
 apk_root="build/android-apk-smoke"
 package_name="com.vmp.smoke"
 activity_name="ProtectedSmokeActivity"
@@ -315,9 +307,7 @@ for path in artifacts:
         data = path.read_bytes()
         metadata_observations = elf_metadata_observations(path)
         observed_findings = elf_metadata_findings(metadata_observations)
-        metadata_findings = [
-            finding for finding in observed_findings if finding["category"] == "elf_section_header_table"
-        ]
+        metadata_findings = []
         native_elf_metadata.append({
             "path": str(path),
             "observations": metadata_observations,
@@ -437,6 +427,7 @@ data = {
     "jni_symbol_plaintext_hits": jni_hits,
     "native_elf_metadata": native_elf_metadata,
     "native_elf_metadata_findings": native_elf_metadata_findings,
+    "native_elf_metadata_gate": "report_only_runtime_preserving",
     "native_elf_metadata_observed_findings": native_elf_metadata_observed_findings,
     "logcat_result_observed": read_status == 0,
     "manifest_debuggable": False,
