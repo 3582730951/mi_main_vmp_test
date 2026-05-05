@@ -28,10 +28,22 @@ typedef struct VmpPlatformProbe {
   uint32_t reserved;
 } VmpPlatformProbe;
 
-VMP_EXPORT int vmp_platform_init(void);
-VMP_EXPORT VmpPlatformProbe vmp_platform_probe(void);
-VMP_EXPORT int vmp_platform_protected_add(int lhs, int rhs);
-VMP_EXPORT uint32_t vmp_platform_hash_name(const char *name);
+#define MI_PLATFORM_INIT_SYMBOL "mi_p0"
+#define MI_PLATFORM_PROBE_SYMBOL "mi_p1"
+#define MI_PLATFORM_ADD_SYMBOL "mi_p2"
+#define MI_PLATFORM_HASH_SYMBOL "mi_p3"
+
+VMP_EXPORT int mi_p0(void);
+VMP_EXPORT VmpPlatformProbe mi_p1(void);
+VMP_EXPORT int mi_p2(int lhs, int rhs);
+VMP_EXPORT uint32_t mi_p3(const char *name);
+
+#ifndef VMP_PLATFORM_DISABLE_COMPAT_NAMES
+#define vmp_platform_init mi_p0
+#define vmp_platform_probe mi_p1
+#define vmp_platform_protected_add mi_p2
+#define vmp_platform_hash_name mi_p3
+#endif
 
 #ifdef __cplusplus
 }

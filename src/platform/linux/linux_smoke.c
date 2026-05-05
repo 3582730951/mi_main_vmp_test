@@ -22,7 +22,7 @@ int main(int argc, char **argv) {
       puts(dlerror());
       return 23;
     }
-    add = (add_fn)dlsym(handle, "vmp_platform_protected_add");
+    add = (add_fn)dlsym(handle, MI_PLATFORM_ADD_SYMBOL);
     if (add == NULL || add(20, 22) != 42) {
       return 24;
     }

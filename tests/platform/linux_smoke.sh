@@ -34,6 +34,10 @@ readelf -l "$build_dir/vmp_platform_smoke" | grep -q 'GNU_RELRO'
 readelf -l "$so_path" | grep -q 'GNU_RELRO'
 readelf -d "$build_dir/vmp_platform_smoke" | grep -Eq 'BIND_NOW|FLAGS.*NOW'
 readelf -d "$so_path" | grep -Eq 'BIND_NOW|FLAGS.*NOW'
+if readelf -Ws "$so_path" | grep -E 'vmp_platform_|vmp_|VMP|OLLVM'; then
+  echo "Forbidden platform ABI marker found in Linux .so symbol table" >&2
+  exit 32
+fi
 
 if command -v scanelf >/dev/null 2>&1; then
   scanelf -e "$build_dir/vmp_platform_smoke" "$so_path" >/dev/null

@@ -24,9 +24,9 @@ int main(int argc, char **argv) {
     return 30;
   }
 
-  init = (init_fn)dlsym(handle, "vmp_platform_init");
-  probe = (probe_fn)dlsym(handle, "vmp_platform_probe");
-  add = (add_fn)dlsym(handle, "vmp_platform_protected_add");
+  init = (init_fn)dlsym(handle, MI_PLATFORM_INIT_SYMBOL);
+  probe = (probe_fn)dlsym(handle, MI_PLATFORM_PROBE_SYMBOL);
+  add = (add_fn)dlsym(handle, MI_PLATFORM_ADD_SYMBOL);
   jni_on_load = (jni_on_load_fn)dlsym(handle, "JNI_OnLoad");
   if (init == NULL || probe == NULL || add == NULL || jni_on_load == NULL) {
     puts("missing_required_symbol=1");

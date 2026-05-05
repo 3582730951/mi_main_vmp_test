@@ -42,6 +42,10 @@ for artifact in "$dll" "$exe"; do
     echo "Forbidden marker found in Windows PE artifact: $artifact" >&2
     exit 42
   fi
+  if strings -a "$artifact" | grep -E 'vmp_platform_(init|probe|protected_add|hash_name)|\.vmp|VMPPassPlugin|OLLVM'; then
+    echo "Forbidden platform ABI marker found in Windows PE artifact: $artifact" >&2
+    exit 43
+  fi
 done
 
 python3 - "$report_path" "$dll" "$exe" <<'PY'

@@ -2,7 +2,7 @@
 
 static uint32_t g_ios_init_state;
 
-__attribute__((constructor)) static void vmp_ios_constructor(void) {
+__attribute__((constructor)) static void mi_ios_ctor(void) {
   g_ios_init_state = 0x494f5331u;
 }
 

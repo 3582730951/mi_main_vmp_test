@@ -5,8 +5,8 @@
 - T090: `src/platform/windows/windows_adapter.c` exposes the runtime ABI probe for x64 calling-convention validation.
 - T091: `src/platform/CMakeLists.txt` can build a Windows executable and DLL.
 - T092: Import resolution is reserved for hashed lookup. The skeleton does not import sensitive APIs by name.
-- T093: TLS/init ordering is represented by an explicit `vmp_platform_init` entry point; a TLS callback can be added after the runtime ABI freezes.
-- T094: A `.vmp$init` marker reserves the section-layout hook for bytecode/runtime metadata.
+- T093: TLS/init ordering is represented by an explicit platform init entry point; a TLS callback can be added after the runtime ABI freezes.
+- T094: The former `.vmp$init` section marker has been removed from the platform adapter; section-layout metadata must use neutral release names.
 - T095: Crash/PDB map handling is documented as a report sidecar generated during protection.
 - T096: `.github/workflows/platform-windows.yml` builds and runs the smoke binary on GitHub-hosted Windows.
 - T097/T154 support: `tests/platform/windows_hostile_trigger_report.ps1` records controlled Windows debugger, page-guard, and module-load observations on the Windows runner. It does not satisfy the external hardware-breakpoint or external DLL-injection hard gate by itself.

@@ -6,7 +6,7 @@
 
 static uint32_t g_android_init_state;
 
-__attribute__((constructor)) static void vmp_android_constructor(void) {
+__attribute__((constructor)) static void mi_android_ctor(void) {
   g_android_init_state = 0x414e4452u;
 }
 

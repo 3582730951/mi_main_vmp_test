@@ -2,7 +2,7 @@
 
 static uint32_t g_linux_init_state;
 
-__attribute__((constructor)) static void vmp_linux_constructor(void) {
+__attribute__((constructor)) static void mi_linux_ctor(void) {
   g_linux_init_state = 0x4c494e58u;
 }
 
