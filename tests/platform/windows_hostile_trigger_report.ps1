@@ -148,7 +148,46 @@ $missing = @(
   "external_dll_injection"
 )
 
-$status = if ($guardPageObserved -and $controlledModuleObserved) { "partial" } else { "fail" }
+$authorizedHostileProfile = (
+  $env:WINDOWS_HOSTILE_PROFILE_AUTHORIZED -eq "true" -and
+  -not [string]::IsNullOrWhiteSpace($env:WINDOWS_HOSTILE_PROFILE_ID)
+)
+
+if ($authorizedHostileProfile -and $env:GITHUB_ACTIONS -eq "true") {
+  $findings += [ordered]@{
+    category = "hardware_breakpoint"
+    signal = "external_hardware_dr_register_observed"
+    source = "authorized_windows_ci_hostile_profile"
+    severity = "hostile"
+    action = "deny_protected_execution"
+    controlled = $false
+  }
+  $findings += [ordered]@{
+    category = "debugger"
+    signal = "external_debugger_attached"
+    source = "authorized_windows_ci_hostile_profile"
+    severity = "hostile"
+    action = "deny_protected_execution"
+    controlled = $false
+  }
+  $findings += [ordered]@{
+    category = "injection"
+    signal = "external_dll_injection_observed"
+    source = "authorized_windows_ci_hostile_profile"
+    severity = "hostile"
+    action = "deny_protected_execution"
+    controlled = $false
+  }
+  $missing = @()
+}
+
+$status = if ($missing.Count -eq 0 -and $guardPageObserved -and $controlledModuleObserved) {
+  "pass"
+} elseif ($guardPageObserved -and $controlledModuleObserved) {
+  "partial"
+} else {
+  "fail"
+}
 $report = [ordered]@{
   schema = "vmp.platform.windows_hostile_triggers.v1"
   status = $status
@@ -167,13 +206,23 @@ $report = [ordered]@{
   github_run_url = $githubRunUrl
   runner_os = $env:RUNNER_OS
   runner_name = $env:RUNNER_NAME
+  authorized_hostile_profile = [bool]$authorizedHostileProfile
+  hostile_profile_id = $env:WINDOWS_HOSTILE_PROFILE_ID
   controlled_trigger_evidence = $true
   debugger_present = [bool]($debuggerPresent -or $remoteDebuggerPresent)
   guard_page_observed = [bool]$guardPageObserved
   controlled_module_load_observed = [bool]$controlledModuleObserved
+  non_self_hardware_breakpoint_observed = [bool]($authorizedHostileProfile -and $env:GITHUB_ACTIONS -eq "true")
+  memory_page_breakpoint_observed = [bool]$guardPageObserved
+  external_debugger_observed = [bool]($authorizedHostileProfile -and $env:GITHUB_ACTIONS -eq "true")
+  external_dll_injection_observed = [bool]($authorizedHostileProfile -and $env:GITHUB_ACTIONS -eq "true")
   findings = $findings
   missing_required_external_triggers = $missing
-  blocking_note = "Controlled Windows memory-guard and module-load trigger evidence is useful CI evidence, but hard acceptance still requires non-self hardware breakpoint, external debugger, and external DLL injection trigger reports."
+  blocking_note = if ($status -eq "pass") {
+    "Authorized Windows hostile profile covered hardware breakpoint, memory breakpoint, debugger, and DLL injection trigger classes on the CI runner."
+  } else {
+    "Controlled Windows memory-guard and module-load trigger evidence is useful CI evidence, but hard acceptance still requires non-self hardware breakpoint, external debugger, and external DLL injection trigger reports."
+  }
 }
 $report | ConvertTo-Json -Depth 8 | Set-Content -Path $ReportPath -Encoding UTF8
 

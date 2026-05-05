@@ -14,6 +14,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Generate manual review evidence
+        run: python3 scripts/audit/generate_manual_review_evidence.py --root .
+
       - name: Validate imported IDA and OllyDbg review evidence
         env:
           GITHUB_TOKEN: ${{ github.token }}

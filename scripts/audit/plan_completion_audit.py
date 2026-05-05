@@ -273,10 +273,13 @@ def classify_task(root: Path, task: Task, evidence: list[Evidence]) -> tuple[str
         return "blocker", notes
     if task.task_id == "T155":
         signoff = next((item for item in existing if item.value == "docs/qa/FinalSignOff.md"), None)
-        if signoff is not None:
-            notes.append("final sign-off exists but is explicitly blocked")
-        else:
+        if signoff is None:
             notes.append("final sign-off document is missing")
+            return "blocker", notes
+        if final_signoff_evidence_exists(root):
+            notes.append("final sign-off is signed and all strict external evidence gates are satisfied")
+            return "pass", notes
+        notes.append("final sign-off exists but is explicitly blocked or external evidence is incomplete")
         return "blocker", notes
     if "人工复核" in task.acceptance or "ida/ollydbg" in text:
         notes.append("manual reverse-engineering review portion is excluded from this automated audit")
@@ -679,6 +682,30 @@ def ida_ollydbg_manual_review_evidence_exists(root: Path) -> bool:
         and required_indicators.get("xref_or_callgraph_distortion") is True
         and required_indicators.get("string_reference_distortion") is True
         and required_indicators.get("debugger_or_breakpoint_behavior") is True
+    )
+
+
+def final_signoff_evidence_exists(root: Path) -> bool:
+    path = root / "docs/qa/FinalSignOff.md"
+    if not path.exists():
+        return False
+    try:
+        text = safe_read_text(path)
+    except OSError:
+        return False
+    required_markers = (
+        "Status: **signed off**",
+        "Strict completion audit: pass",
+        "Open vulnerabilities: 0",
+        "Open findings: 0",
+    )
+    return bool(
+        all(marker in text for marker in required_markers)
+        and windows_github_actions_evidence_exists(root)
+        and android_release_strength_evidence_exists(root)
+        and hostile_full_coverage_exists(root)
+        and vmprotect_tier_evidence_exists(root)
+        and ida_ollydbg_manual_review_evidence_exists(root)
     )
 
 

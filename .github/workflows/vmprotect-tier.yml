@@ -14,6 +14,16 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Build local protection evidence
+        run: |
+          tests/core/run_core_tests.sh
+          tests/core/run_llvm_plugin_test.sh
+          tests/integration/run_protected_sample_chain.sh
+          tests/integration/run_release_protected_binary.sh
+
+      - name: Generate VMProtect-tier evidence
+        run: python3 scripts/audit/generate_vmprotect_tier_evidence.py --root .
+
       - name: Validate imported VMProtect-tier evidence
         env:
           GITHUB_TOKEN: ${{ github.token }}

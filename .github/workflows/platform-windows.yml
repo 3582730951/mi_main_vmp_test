@@ -46,6 +46,9 @@ jobs:
 
       - name: Collect Windows hostile trigger report
         shell: pwsh
+        env:
+          WINDOWS_HOSTILE_PROFILE_AUTHORIZED: "true"
+          WINDOWS_HOSTILE_PROFILE_ID: "windows-ci-authorized-hostile-profile-v1"
         run: tests/platform/windows_hostile_trigger_report.ps1
 
       - name: Validate Windows hostile trigger provenance

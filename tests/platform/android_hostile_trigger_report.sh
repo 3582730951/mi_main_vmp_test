@@ -65,6 +65,70 @@ path.write_text(json.dumps({
 PY
 }
 
+install_authorized_marker_apk() {
+  local package_name="$1"
+  local label="$2"
+  local work_dir="build/android-hostile-markers/${package_name}"
+  local platform_jar="$sdk_root/platforms/android-35/android.jar"
+  local unsigned_apk="$work_dir/base.apk"
+  local aligned_apk="$work_dir/aligned.apk"
+  local signed_apk="$work_dir/signed.apk"
+  local keystore="$work_dir/marker.keystore"
+
+  if [[ ! -f "$platform_jar" ]]; then
+    echo "Android platform android.jar is missing; cannot build hostile marker APKs" >&2
+    return 1
+  fi
+  for tool in aapt apksigner keytool zipalign; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+      echo "missing Android marker APK tool: $tool" >&2
+      return 1
+    fi
+  done
+
+  rm -rf "$work_dir"
+  mkdir -p "$work_dir"
+  cat >"$work_dir/AndroidManifest.xml" <<XML
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="${package_name}">
+    <uses-sdk android:minSdkVersion="23" android:targetSdkVersion="35" />
+    <application android:label="${label}" android:debuggable="false" android:hasCode="false" />
+</manifest>
+XML
+
+  aapt package -f \
+    -M "$work_dir/AndroidManifest.xml" \
+    -I "$platform_jar" \
+    -F "$unsigned_apk" >/dev/null
+  zipalign -f 4 "$unsigned_apk" "$aligned_apk"
+  keytool -genkeypair -noprompt \
+    -keystore "$keystore" \
+    -storepass android \
+    -keypass android \
+    -alias marker \
+    -keyalg RSA \
+    -keysize 2048 \
+    -validity 10000 \
+    -dname "CN=Authorized Hostile Marker,O=VMP,C=US" >/dev/null
+  apksigner sign \
+    --ks "$keystore" \
+    --ks-key-alias marker \
+    --ks-pass pass:android \
+    --key-pass pass:android \
+    --out "$signed_apk" \
+    "$aligned_apk"
+  adb install -r "$signed_apk" >/dev/null
+}
+
+install_authorized_hostile_profile() {
+  if [[ "${ANDROID_HOSTILE_PROFILE_AUTHORIZED:-}" != "true" || -z "${ANDROID_HOSTILE_PROFILE_ID:-}" ]]; then
+    return 0
+  fi
+
+  install_authorized_marker_apk "com.topjohnwu.magisk" "Magisk Authorized Marker"
+  install_authorized_marker_apk "org.lsposed.manager" "LSPosed Authorized Marker"
+  install_authorized_marker_apk "com.frida.server" "Frida Authorized Marker"
+}
+
 if ! command -v adb >/dev/null 2>&1; then
   write_blocked_report "adb is required for Android hostile-environment probing."
   echo "adb is required" >&2
@@ -84,6 +148,8 @@ if [[ "$boot_completed" != "1" ]]; then
   echo "Android device is not fully booted" >&2
   exit 52
 fi
+
+install_authorized_hostile_profile
 
 getprop_text="$(adb shell getprop 2>/dev/null | tr -d '\r' || true)"
 process_text="$(adb shell ps -A 2>/dev/null | tr -d '\r' || true)"
@@ -199,6 +265,8 @@ for package in ("org.lsposed.manager", "de.robv.android.xposed.installer", "org.
 for name in ("frida-server", "frida-agent", "frida-gadget", "gum-js-loop"):
     if name in process_text or name in package_text:
         add("hook_framework", f"{name}_indicator", "android_packages_processes", name)
+if "frida" in process_text or "frida" in package_text:
+    add("hook_framework", "frida_package_or_process_indicator", "android_packages_processes", "frida")
 if "frida" in unix_socket_text or "gum-js-loop" in unix_socket_text:
     add("hook_framework", "frida_unix_socket_indicator", "android_proc_net_unix", "frida/gum-js-loop")
 if "69a2" in tcp_text or "69a3" in tcp_text:
