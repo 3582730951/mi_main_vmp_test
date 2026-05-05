@@ -48,5 +48,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: vmprotect-tier-evidence
-          path: docs/qa/reports/*.json
+          path: |
+            docs/qa/reports/*.json
+            plan/1.txt
           if-no-files-found: error
