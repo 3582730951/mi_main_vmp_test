@@ -97,20 +97,20 @@
       "status": "pass"
     }
   ],
-  "ci_execution": false,
-  "final_signoff_allowed": false,
-  "generated_at_utc": "2026-05-07T18:12:13.153258Z",
-  "github_actions": false,
-  "github_event_name": null,
-  "github_ref": null,
-  "github_ref_name": null,
-  "github_ref_protected": null,
-  "github_repository": null,
-  "github_run_attempt": null,
-  "github_run_id": null,
-  "github_run_url": null,
-  "github_sha": null,
-  "github_workflow": null,
+  "ci_execution": true,
+  "final_signoff_allowed": true,
+  "generated_at_utc": "2026-05-07T18:22:41.678707Z",
+  "github_actions": true,
+  "github_event_name": "workflow_dispatch",
+  "github_ref": "refs/heads/main",
+  "github_ref_name": "main",
+  "github_ref_protected": "true",
+  "github_repository": "3582730951/mi_main_vmp_test",
+  "github_run_attempt": "1",
+  "github_run_id": "25514200628",
+  "github_run_url": "https://github.com/3582730951/mi_main_vmp_test/actions/runs/25514200628",
+  "github_sha": "09d62ea16db6d6951ea0b5d239a81e143207d9b2",
+  "github_workflow": "vmprotect-tier",
   "llvm_stage_manifest": {
     "implemented_stages": [
       "vmp-config-load",
@@ -134,9 +134,9 @@
     "sha256": "78a5c9c592d7ace99c912b89e53be99e72279185136af8b4c9d84aaa6528dbd2",
     "status": "pass"
   },
-  "runner_name": null,
-  "runner_os": null,
+  "runner_name": "GitHub Actions 1000004996",
+  "runner_os": "Linux",
   "schema": "vmp.qa.capability_matrix.v1",
   "status": "pass",
-  "summary": "Commercial-tier implementation preconditions are locally clean, but trusted workflow provenance is still required."
+  "summary": "Trusted vmprotect-tier workflow found all commercial-tier preconditions satisfied."
 }

@@ -1,6 +1,6 @@
 # Protection Capability Showcase
 
-Generated: `2026-05-07T18:03:17.771634Z`
+Generated: `2026-05-07T18:32:00.646577Z`
 
 The project demonstrates local VM bytecode lowering/replacement, protected-callsite thunking, xref removal, decompiler-trap markers, strict release string/import minimization, a hardened Windows visible demo, and automated reverse-cost evidence.
 
@@ -23,7 +23,6 @@ Not claimed: This report does not claim complete VMProtect-tier commercial cover
 
 ## Blockers And Limits
 
-- final_signoff_allowed=false in capability matrix
 - placeholder_noop_stages=[]
 - accepted Windows release does not enable syscall-only I/O; direct Windows syscall stubs remain outside the release gate by policy
 - full broad LLVM IR virtualization is not proven; unsupported functions remain native by policy

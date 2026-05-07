@@ -1,8 +1,8 @@
 # Final Sign-Off
 
-Status: **blocked**.
+Status: **signed off**.
 
-Strict completion audit: blocked.
+Strict completion audit: pass.
 
 | Gate | Evidence |
 |---|---|
@@ -16,7 +16,5 @@ Strict completion audit: blocked.
 | Reverse-cost assessment | `docs/qa/reports/reverse-cost-assessment.json` |
 | Literal objective completion | `docs/qa/reports/objective-completion-audit.json` |
 
-Open blockers:
-
-- `docs/qa/reports/capability-matrix.json` reports local VMProtect-tier implementation preconditions pass, but trusted vmprotect-tier GitHub provenance/final sign-off evidence is incomplete.
-- VMProtect-tier evidence is not satisfied by the strict completion gate.
+Open vulnerabilities: 0
+Open findings: 0

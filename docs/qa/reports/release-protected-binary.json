@@ -1,5 +1,5 @@
 {
-  "artifact": "/workspace/artifacts/protected/linux/protected_release_sample",
+  "artifact": "/home/runner/work/mi_main_vmp_test/mi_main_vmp_test/artifacts/protected/linux/protected_release_sample",
   "artifact_bytes": 16384,
   "behavior_cases_passed": 4,
   "elf_load_layout": {
@@ -15,13 +15,15 @@
       20256
     ],
     "position_independent_executable": true,
-    "program_header_count": 7,
+    "program_header_count": 9,
     "program_header_types": [
       "LOAD",
       "LOAD",
       "LOAD",
       "LOAD",
       "DYNAMIC",
+      "NOTE",
+      "0x6474e553",
       "GNU_STACK",
       "GNU_RELRO"
     ],
@@ -39,7 +41,7 @@
     "standard_section_string_hits": [],
     "status": "observed"
   },
-  "embedded_sample": "/workspace/tests/integration/.release-build/protected_sample.vmp",
+  "embedded_sample": "/home/runner/work/mi_main_vmp_test/mi_main_vmp_test/tests/integration/.release-build/protected_sample.vmp",
   "embedded_sample_bytes": 149,
   "forbidden_plaintext_hits": [],
   "link_mode": "static-pie",

@@ -12,8 +12,8 @@
       "backend_count": 2,
       "status": "pass",
       "tool": "external-callgraph-consensus",
-      "total_call_edges_observed": 16,
-      "total_functions_observed": 17
+      "total_call_edges_observed": 38,
+      "total_functions_observed": 31
     },
     "external_tool_results": [
       {
@@ -52,8 +52,8 @@
         "backend_count": 2,
         "status": "pass",
         "tool": "external-callgraph-consensus",
-        "total_call_edges_observed": 16,
-        "total_functions_observed": 17
+        "total_call_edges_observed": 38,
+        "total_functions_observed": 31
       }
     ],
     "github_tool_sources": [
@@ -420,7 +420,7 @@
     }
   ],
   "completion_note": "All objective checks passed against the available artifact evidence. Platform adapters stay self-contained, the only direct syscall is the fixed Linux exit path, protected payload/native artifacts have zero printable strings except the encrypted Windows visible console demo, and protected execution evidence is passing across the available Linux, Windows, Android, and iOS gates.",
-  "generated_at_utc": "2026-05-07T18:12:09.510876Z",
+  "generated_at_utc": "2026-05-07T18:29:15.254104Z",
   "objective": [
     "make platform syscall/API access self-contained where possible and avoid system/API calls unless necessary",
     "prove protected programs run stably after protection with executable platform evidence",

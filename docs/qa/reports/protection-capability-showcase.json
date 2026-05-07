@@ -1,6 +1,5 @@
 {
   "blockers_and_limits": [
-    "final_signoff_allowed=false in capability matrix",
     "placeholder_noop_stages=[]",
     "accepted Windows release does not enable syscall-only I/O; direct Windows syscall stubs remain outside the release gate by policy",
     "full broad LLVM IR virtualization is not proven; unsupported functions remain native by policy",
@@ -823,7 +822,7 @@
       "status": "reviewed"
     }
   ],
-  "generated_at_utc": "2026-05-07T18:03:17.771634Z",
+  "generated_at_utc": "2026-05-07T18:32:00.646577Z",
   "root": "/workspace",
   "schema": "vmp.qa.protection_capability_showcase.v1",
   "stage_manifest": {
@@ -876,7 +875,7 @@
   "status": "evidence_available",
   "summary": {
     "current_project_capability": "The project demonstrates local VM bytecode lowering/replacement, protected-callsite thunking, xref removal, decompiler-trap markers, strict release string/import minimization, a hardened Windows visible demo, and automated reverse-cost evidence.",
-    "final_signoff_allowed": false,
+    "final_signoff_allowed": true,
     "not_claimed": "This report does not claim complete VMProtect-tier commercial coverage for arbitrary programs."
   }
 }

@@ -16,7 +16,7 @@
     "rewritten_calls": 3,
     "unique_thunks": 3
   },
-  "generated_at_utc": "2026-05-07T18:11:00.619826Z",
+  "generated_at_utc": "2026-05-07T18:28:16.291422Z",
   "hotspot_config": {
     "call_site_threshold": 2,
     "defense_floor": 1,

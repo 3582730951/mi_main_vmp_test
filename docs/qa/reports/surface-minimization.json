@@ -1,6 +1,6 @@
 {
   "avoidable_surface_findings": 0,
-  "generated_at_utc": "2026-05-07T18:11:18.572076Z",
+  "generated_at_utc": "2026-05-07T18:28:33.606443Z",
   "missing_artifacts": [],
   "policy_note": "Mandatory executable-container signatures are observed, not treated as removable. This gate fails on avoidable product, VM, OLLVM, protected plaintext, explicit import-resolver markers, printable PE section names, COFF symbol tables, standard PE section-name string residue, unexpected PE imports, PE export/TLS directories, ELF dynamic imports/exports, ELF section headers, and standard ELF section-name string residue.",
   "scanned_artifacts": [

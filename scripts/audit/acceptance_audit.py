@@ -653,7 +653,35 @@ def check_capability_matrix(root: Path) -> tuple[list[Finding], dict[str, int]]:
         }
     if report.get("schema") != "vmp.qa.capability_matrix.v1":
         findings.append(Finding("capability", report_path.relative_to(root).as_posix(), "unexpected capability matrix schema"))
-    if report.get("final_signoff_allowed") is not False:
+    if report.get("final_signoff_allowed") is True:
+        lowering = read_json_report(root, "docs/qa/reports/general-ir-lowering.json")
+        crypto = read_json_report(root, "docs/qa/reports/production-crypto-key-management.json")
+        review = read_json_report(root, "docs/qa/reports/vmprotect-tier-review.json")
+        trusted_vmprotect_provenance = (
+            report.get("status") == "pass"
+            and lowering.get("status") == "pass"
+            and crypto.get("status") == "pass"
+            and review.get("status") == "pass"
+            and all(
+                item.get("github_actions") is True and item.get("github_workflow") == "vmprotect-tier"
+                for item in (report, lowering, crypto, review)
+            )
+            and github_actions_verification_matches(
+                root,
+                "docs/qa/reports/vmprotect-tier-github-actions-verification.json",
+                [report, lowering, crypto, review],
+                [
+                    "docs/qa/reports/capability-matrix.json",
+                    "docs/qa/reports/general-ir-lowering.json",
+                    "docs/qa/reports/production-crypto-key-management.json",
+                    "docs/qa/reports/vmprotect-tier-review.json",
+                ],
+                expected_workflow="vmprotect-tier",
+            )
+        )
+        if not trusted_vmprotect_provenance:
+            findings.append(Finding("capability", report_path.relative_to(root).as_posix(), "capability matrix must not allow final sign-off without trusted VMProtect-tier GitHub provenance"))
+    elif report.get("final_signoff_allowed") is not False:
         findings.append(Finding("capability", report_path.relative_to(root).as_posix(), "capability matrix must not allow final sign-off while hard blockers remain"))
     capabilities = report.get("capabilities")
     if not isinstance(capabilities, list) or len(capabilities) < 8:

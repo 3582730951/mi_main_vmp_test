@@ -526,12 +526,13 @@ def build_report(root: Path) -> dict[str, Any]:
     ]
 
     blockers = [
-        "final_signoff_allowed=false in capability matrix",
         f"placeholder_noop_stages={placeholder_stages}",
         "accepted Windows release does not enable syscall-only I/O; direct Windows syscall stubs remain outside the release gate by policy",
         "full broad LLVM IR virtualization is not proven; unsupported functions remain native by policy",
         "IDA plugin recovery remains a real residual risk until flattening, production crypto, and broader binary-level anti-decompiler validation are implemented.",
     ]
+    if capability_matrix.get("final_signoff_allowed") is not True:
+        blockers.insert(0, "final_signoff_allowed=false in capability matrix")
     if not generic_const_strings:
         blockers.insert(2, "generic LLVM const-string encryption is not implemented as a general pass")
     if capability_matrix.get("status") and capability_matrix.get("status") != "pass":
