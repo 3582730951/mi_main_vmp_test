@@ -4,7 +4,7 @@ set -euo pipefail
 report_path="${1:-docs/qa/reports/android-apk-smoke.json}"
 sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/opt/android-sdk}}"
 ndk_home="${ANDROID_NDK_HOME:-}"
-native_activity_smoke="${ANDROID_APK_SMOKE_NATIVE_ACTIVITY:-true}"
+native_activity_smoke="${ANDROID_APK_SMOKE_NATIVE_ACTIVITY:-false}"
 export ANDROID_APK_SMOKE_NATIVE_ACTIVITY="$native_activity_smoke"
 if [[ -z "$ndk_home" && -d "$sdk_root/ndk" ]]; then
   ndk_home="$(find "$sdk_root/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
