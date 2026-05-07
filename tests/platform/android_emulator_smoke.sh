@@ -69,13 +69,8 @@ build_abi x86_64 build/android-x86_64
 build_abi arm64-v8a build/android-arm64-v8a
 
 strip_tool="$ndk_home/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip"
-objcopy_tool="$ndk_home/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-objcopy"
 if [[ -x "$strip_tool" ]]; then
   "$strip_tool" --strip-all build/android-x86_64/libmi_platform.so build/android-arm64-v8a/libmi_platform.so
-fi
-if [[ -x "$objcopy_tool" ]]; then
-  "$objcopy_tool" --strip-sections build/android-x86_64/libmi_platform.so
-  "$objcopy_tool" --strip-sections build/android-arm64-v8a/libmi_platform.so
 fi
 
 runner="build/android-x86_64/mi_android_native_smoke"
