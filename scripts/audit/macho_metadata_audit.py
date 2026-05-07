@@ -458,22 +458,24 @@ def observed_findings(binary: dict[str, Any]) -> list[dict[str, Any]]:
     if binary.get("status") != "observed":
         return []
     findings: list[dict[str, Any]] = []
-    if binary.get("symtab"):
+    symtab = binary.get("symtab") if isinstance(binary.get("symtab"), dict) else None
+    if symtab and (int(symtab.get("nsyms", 0)) > 0 or int(symtab.get("strsize", 0)) > 0):
         findings.append(
             {
                 "category": "macho_symbol_table_present",
                 "pattern": "LC_SYMTAB",
                 "offset": binary.get("file_offset"),
-                "evidence": binary["symtab"],
+                "evidence": symtab,
             }
         )
-    if binary.get("dysymtab"):
+    dysymtab = binary.get("dysymtab") if isinstance(binary.get("dysymtab"), dict) else None
+    if dysymtab and any(int(dysymtab.get(key, 0)) > 0 for key in ("nlocalsym", "nextdefsym", "nundefsym")):
         findings.append(
             {
                 "category": "macho_dynamic_symbol_table_present",
                 "pattern": "LC_DYSYMTAB",
                 "offset": binary.get("file_offset"),
-                "evidence": binary["dysymtab"],
+                "evidence": dysymtab,
             }
         )
     if binary.get("dylibs"):

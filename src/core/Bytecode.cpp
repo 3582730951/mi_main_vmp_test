@@ -1,4 +1,5 @@
 #include "Bytecode.h"
+#include "Aead.h"
 
 #include <cstring>
 #include <stdexcept>
@@ -22,39 +23,70 @@ std::uint64_t readU64(const std::vector<std::uint8_t> &bytes, std::size_t offset
     return value;
 }
 
-std::uint64_t keyWord(const Key256 &key, std::size_t index) {
-    std::uint64_t word = 0;
-    std::memcpy(&word, key.data() + ((index % 4) * sizeof(std::uint64_t)), sizeof(word));
-    return word;
+std::vector<std::uint8_t> associatedData(const BytecodeChunk &chunk, const OpcodeMap &map) {
+    std::vector<std::uint8_t> aad;
+    aad.reserve(8 + 4 + 4 + 8 + 8 + 8 + map.encode.size());
+    appendU64(aad, chunk.magic);
+    for (unsigned i = 0; i < 4; ++i) {
+        aad.push_back(static_cast<std::uint8_t>((chunk.version >> (i * 8U)) & 0xffU));
+    }
+    for (unsigned i = 0; i < 4; ++i) {
+        aad.push_back(static_cast<std::uint8_t>((chunk.vmLevel >> (i * 8U)) & 0xffU));
+    }
+    appendU64(aad, chunk.functionHash);
+    appendU64(aad, chunk.platformSalt);
+    appendU64(aad, chunk.nonce);
+    for (std::uint8_t byte : map.encode) {
+        aad.push_back(byte);
+    }
+    return aad;
 }
 
-std::vector<std::uint8_t> xorStream(const std::vector<std::uint8_t> &input, const Key256 &key, std::uint64_t nonce) {
-    std::vector<std::uint8_t> out = input;
-    std::uint64_t block = 0;
-    for (std::size_t i = 0; i < out.size(); ++i) {
-        if ((i % 8) == 0) {
-            block = mix64(keyWord(key, i / 8) ^ nonce ^ static_cast<std::uint64_t>(i / 8));
-        }
-        out[i] ^= static_cast<std::uint8_t>((block >> ((i % 8) * 8U)) & 0xffU);
+std::uint64_t foldTag64(const std::uint8_t tag[aead::kTagSize]) {
+    std::uint64_t out = 0;
+    for (unsigned i = 0; i < 8; ++i) {
+        out |= static_cast<std::uint64_t>(tag[i]) << (i * 8U);
     }
     return out;
 }
 
-std::uint64_t tagChunk(const BytecodeChunk &chunk, const OpcodeMap &map, const Key256 &key) {
-    std::uint64_t tag = 0xfeedfacedeadbeefULL;
-    tag ^= keyWord(key, 0);
-    tag = mix64(tag ^ chunk.version);
-    tag = mix64(tag ^ chunk.vmLevel);
-    tag = mix64(tag ^ chunk.functionHash);
-    tag = mix64(tag ^ chunk.platformSalt);
-    tag = mix64(tag ^ chunk.nonce);
-    for (std::uint8_t byte : map.encode) {
-        tag = stableHash64(std::string_view(reinterpret_cast<const char *>(&byte), 1), tag);
+std::vector<std::uint8_t> sealPayloadAEAD(const std::vector<std::uint8_t> &plain, const BytecodeChunk &chunk,
+                                          const OpcodeMap &map, const Key256 &key,
+                                          std::uint8_t tag[aead::kTagSize]) {
+    std::vector<std::uint8_t> sealed(plain.size() + aead::kTagSize);
+    std::uint8_t nonce[12]{};
+    aead::nonce96(chunk.nonce, chunk.functionHash, chunk.vmLevel, nonce);
+    aead::chacha20Xor(key.data(), nonce, 1, plain.data(), sealed.data(), plain.size());
+    const auto aad = associatedData(chunk, map);
+    std::uint8_t polyKey[64]{};
+    aead::chacha20Block(key.data(), nonce, 0, polyKey);
+    aead::poly1305Mac(polyKey, aad.data(), aad.size(), sealed.data(), plain.size(), tag);
+    std::memcpy(sealed.data() + plain.size(), tag, aead::kTagSize);
+    return sealed;
+}
+
+std::optional<std::vector<std::uint8_t>> openPayloadAEAD(const BytecodeChunk &chunk, const OpcodeMap &map,
+                                                         const Key256 &key) {
+    if (chunk.encryptedPayload.size() < aead::kTagSize) {
+        return std::nullopt;
     }
-    for (std::uint8_t byte : chunk.encryptedPayload) {
-        tag = stableHash64(std::string_view(reinterpret_cast<const char *>(&byte), 1), tag);
+    const std::size_t cipherSize = chunk.encryptedPayload.size() - aead::kTagSize;
+    const std::uint8_t *ciphertext = chunk.encryptedPayload.data();
+    const std::uint8_t *providedTag = chunk.encryptedPayload.data() + cipherSize;
+    std::uint8_t nonce[12]{};
+    aead::nonce96(chunk.nonce, chunk.functionHash, chunk.vmLevel, nonce);
+    const auto aad = associatedData(chunk, map);
+    std::uint8_t polyKey[64]{};
+    std::uint8_t expectedTag[aead::kTagSize]{};
+    aead::chacha20Block(key.data(), nonce, 0, polyKey);
+    aead::poly1305Mac(polyKey, aad.data(), aad.size(), ciphertext, cipherSize, expectedTag);
+    if (!aead::constantTimeEquals(providedTag, expectedTag, aead::kTagSize) ||
+        foldTag64(expectedTag) != chunk.authTag) {
+        return std::nullopt;
     }
-    return tag;
+    std::vector<std::uint8_t> plain(cipherSize);
+    aead::chacha20Xor(key.data(), nonce, 1, ciphertext, plain.data(), plain.size());
+    return plain;
 }
 
 } // namespace
@@ -102,8 +134,10 @@ BytecodeChunk encryptChunk(const std::vector<Instruction> &instructions, const O
     chunk.platformSalt = platformSalt;
     chunk.nonce = deriveNonce(seed, functionHash, platformSalt, vmLevel, "bytecode-chunk");
     const auto key = deriveKey(seed, functionHash, platformSalt, vmLevel, "bytecode-chunk");
-    chunk.encryptedPayload = xorStream(serializeInstructions(instructions, map), key, chunk.nonce);
-    chunk.authTag = tagChunk(chunk, map, key);
+    std::uint8_t tag[aead::kTagSize]{};
+    // AEAD seal: ChaCha20 payload encryption plus Poly1305 authentication over chunk metadata and opcode map.
+    chunk.encryptedPayload = sealPayloadAEAD(serializeInstructions(instructions, map), chunk, map, key, tag);
+    chunk.authTag = foldTag64(tag);
     return chunk;
 }
 
@@ -118,11 +152,11 @@ DecryptResult decryptChunk(const BytecodeChunk &chunk, const OpcodeMap &map, std
         return {false, "invalid vm_level", {}};
     }
     const auto key = deriveKey(seed, chunk.functionHash, chunk.platformSalt, chunk.vmLevel, "bytecode-chunk");
-    if (tagChunk(chunk, map, key) != chunk.authTag) {
+    const auto plain = openPayloadAEAD(chunk, map, key);
+    if (!plain.has_value()) {
         return {false, "bytecode authentication failed", {}};
     }
-    const auto plain = xorStream(chunk.encryptedPayload, key, chunk.nonce);
-    const auto instructions = deserializeInstructions(plain, map);
+    const auto instructions = deserializeInstructions(*plain, map);
     if (!instructions.has_value()) {
         return {false, "bytecode decode failed", {}};
     }

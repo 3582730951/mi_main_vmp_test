@@ -701,6 +701,24 @@ lo:
   ret i32 %second
 }
 
+define i64 @secret_i64_arith(i64 %x, i64 %y) {
+entry:
+  %mixed = xor i64 %x, %y
+  %scaled = mul i64 %mixed, 17
+  %out = add i64 %scaled, 1311768467463790320
+  ret i64 %out
+}
+
+define i64 @secret_i64_local(i64 %x) {
+entry:
+  %slot = alloca i64, align 8
+  %sum = add i64 %x, 4294967297
+  store i64 %sum, i64* %slot, align 8
+  %loaded = load i64, i64* %slot, align 8
+  %out = xor i64 %loaded, -3819410108451629448
+  ret i64 %out
+}
+
 define i32 @secret_side_effect(i32 %x) {
 entry:
   store volatile i32 %x, i32* @side_effect_sink

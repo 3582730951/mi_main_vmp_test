@@ -55,6 +55,8 @@
 ; CHECK: @vmp.bytecode.secret_call_chain = private unnamed_addr constant
 ; CHECK: @vmp.bytecode.secret_call_pair = private unnamed_addr constant
 ; CHECK: @vmp.bytecode.secret_call_branch = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_i64_arith = private unnamed_addr constant
+; CHECK: @vmp.bytecode.secret_i64_local = private unnamed_addr constant
 ; CHECK-NOT: @vmp.bytecode.secret_dynamic_shift
 ; CHECK-NOT: @vmp.bytecode.secret_dynamic_lshr
 ; CHECK-NOT: @vmp.bytecode.secret_dynamic_ashr
@@ -680,6 +682,24 @@
 ; CHECK: call i32 @vmp_runtime_entry_i32_i32
 ; CHECK: ret i32 %vmp.vm.result
 
+; CHECK-LABEL: define i64 @secret_i64_arith(i64 %x, i64 %y)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i64 @vmp_runtime_entry_i64_i64_i64
+; CHECK: ret i64 %vmp.vm.result
+
+; CHECK-LABEL: define i64 @secret_i64_local(i64 %x)
+; CHECK-SAME: !vmp.protect
+; CHECK-SAME: !vmp.bytecode
+; CHECK-SAME: !vmp.lowering
+; CHECK-SAME: !vmp.replaced
+; CHECK: vmp.entry:
+; CHECK: call i64 @vmp_runtime_entry_i64_i64
+; CHECK: ret i64 %vmp.vm.result
+
 ; CHECK-LABEL: define i32 @secret_side_effect(i32 %x)
 ; CHECK-SAME: !vmp.protect
 ; CHECK-SAME: !vmp.unsupported
@@ -1096,4 +1116,4 @@
 ; CHECK: !{!"vmp-anti-analysis-hooks"}
 ; CHECK: !{!"vmp-function-replacement"}
 ; CHECK: !{!"vmp-report"}
-; CHECK: !{!"ir-subset-i32-recursive-cfg-expr-bitwise-safe-dynshift-trunccast-stack-select-callhost-branch-phi-vm-runtime"}
+; CHECK: !{!"ir-subset-i32-i64-recursive-cfg-expr-bitwise-safe-dynshift-trunccast-stack-select-callhost-branch-phi-vm-runtime"}

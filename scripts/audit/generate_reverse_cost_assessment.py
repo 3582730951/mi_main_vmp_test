@@ -20,6 +20,8 @@ from scripts.audit.github_metadata import current_github_metadata
 from scripts.audit.protected_callgraph_audit import DEFAULT_OUTPUT as CALLGRAPH_REPORT
 from scripts.audit.protected_callgraph_audit import build_report as build_callgraph_report
 from scripts.audit.protected_callgraph_audit import write_json as write_callgraph_json
+from scripts.audit.reverse_tooling import GITHUB_TOOL_SOURCES
+from scripts.audit.reverse_tooling import collect_external_reverse_tooling
 
 
 REQUIRED_CAPABILITIES = (
@@ -33,6 +35,13 @@ REQUIRED_CAPABILITIES = (
     "decompiler_traps",
     "randomized_stack_backtrace",
 )
+
+WINDOWS_FIXED_CONSOLE_IMPORTS = {
+    ("kernel32.dll", "exitprocess"),
+    ("kernel32.dll", "getstdhandle"),
+    ("kernel32.dll", "readfile"),
+    ("kernel32.dll", "writefile"),
+}
 
 
 def sha256(path: Path) -> str:
@@ -78,6 +87,71 @@ def read_json(path: Path) -> dict[str, Any]:
     except (OSError, json.JSONDecodeError):
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def surface_artifact(surface: dict[str, Any], suffix: str) -> dict[str, Any]:
+    for item in surface.get("scanned_artifacts", []):
+        if isinstance(item, dict) and str(item.get("artifact", "")).endswith(suffix):
+            return item
+    return {}
+
+
+def windows_fixed_api_surface_allowed(pe_obs: dict[str, Any]) -> bool:
+    if pe_obs.get("export_directory_present") is not False or pe_obs.get("tls_directory_present") is not False:
+        return False
+    import_count = int(pe_obs.get("import_count", -1))
+    if import_count == 0 and pe_obs.get("import_directory_present") is False:
+        return True
+    imports = pe_obs.get("imports", [])
+    if not isinstance(imports, list) or not imports:
+        return False
+    observed = set()
+    for item in imports:
+        if not isinstance(item, dict):
+            return False
+        observed.add((str(item.get("dll", "")).lower(), str(item.get("name", "")).lower()))
+    return len(observed) == import_count and observed.issubset(WINDOWS_FIXED_CONSOLE_IMPORTS)
+
+
+def syscall_api_surface_score(root: Path) -> tuple[dict[str, int], list[dict[str, Any]]]:
+    surface = read_json(root / "docs/qa/reports/surface-minimization.json")
+    linux_surface = surface_artifact(surface, "protected_release_sample")
+    windows_surface = surface_artifact(surface, "protected_release_sample.exe")
+    elf_obs = linux_surface.get("elf_observations", {}) if isinstance(linux_surface.get("elf_observations"), dict) else {}
+    pe_obs = windows_surface.get("pe_observations", {}) if isinstance(windows_surface.get("pe_observations"), dict) else {}
+    syscall_policy = surface.get("syscall_policy", {}) if isinstance(surface.get("syscall_policy"), dict) else {}
+    api_minimization = (
+        syscall_policy.get("api_call_minimization", {})
+        if isinstance(syscall_policy.get("api_call_minimization"), dict)
+        else {}
+    )
+    evidence = {
+        "surface_report_pass": surface.get("status") == "pass" and surface.get("avoidable_surface_findings") == 0,
+        "generic_syscall_resolver_disallowed": syscall_policy.get("generic_syscall_resolver_allowed") is False,
+        "fixed_linux_exit_scope_declared": syscall_policy.get("allowed_direct_syscall_scope")
+        == "fixed_linux_x86_64_exit_for_crt_free_release_runner_only",
+        "windows_direct_syscalls_disabled": syscall_policy.get("windows_direct_syscalls_enabled") is False,
+        "windows_visible_demo_api_calls_minimized": (
+            api_minimization.get("crt_linkage_removed") is True
+            and api_minimization.get("stdout_stdin_handles_cached") is True
+            and api_minimization.get("writefile_calls_batched") is True
+        ),
+        "linux_release_no_dynamic_import_export": int(elf_obs.get("import_count", -1)) == 0
+        and int(elf_obs.get("export_count", -1)) == 0,
+        "windows_release_fixed_api_surface": windows_fixed_api_surface_allowed(pe_obs),
+    }
+    passed = all(evidence.values())
+    return (
+        {"syscall_api_surface_minimization": 35} if passed else {},
+        [
+            {
+                "tool": "surface-minimization-syscall-policy",
+                "status": "pass" if passed else "partial",
+                "report": "docs/qa/reports/surface-minimization.json",
+                "evidence": evidence,
+            }
+        ],
+    )
 
 
 def has_tool(name: str) -> bool:
@@ -146,6 +220,19 @@ def analyze_artifact(root: Path, artifact: Path) -> tuple[dict[str, Any], dict[s
             "status": "pass" if code == 0 else "unavailable",
             "indirect_or_branch_marker_count": indirect_markers,
         })
+
+    external = collect_external_reverse_tooling(root, artifact)
+    score.update(external["score_breakdown"])
+    tool_results.extend(external["tool_results"])
+    callgraph_consensus = external.get("callgraph_consensus")
+    if isinstance(callgraph_consensus, dict):
+        tool_results.append({
+            "tool": "external-callgraph-consensus",
+            **callgraph_consensus,
+        })
+    syscall_score, syscall_results = syscall_api_surface_score(root)
+    score.update(syscall_score)
+    tool_results.extend(syscall_results)
 
     return {
         "path": str(artifact.relative_to(root)) if artifact.is_relative_to(root) else str(artifact),
@@ -262,7 +349,22 @@ def main() -> int:
         "assessment_date": datetime.now(timezone.utc).date().isoformat(),
         "review_tools": [
             name for name in ["readelf", "objdump", "nm", "strings"] if has_tool(name)
+        ] + [
+            result["tool"]
+            for result in artifact_tools
+            if result.get("tool") in {
+                "lief",
+                "capa",
+                "floss",
+                "radare2-r2pipe",
+                "rizin",
+                "angr",
+                "ghidra",
+                "external-callgraph-consensus",
+            }
+            and result.get("status") != "unavailable"
         ] + ["llvm-ir-fixture-scan", "protected-callgraph-audit", "python-shannon-entropy"],
+        "github_tool_sources": list(GITHUB_TOOL_SOURCES),
         "protected_artifact": artifact_info["path"],
         "protected_artifact_sha256": artifact_info["sha256"],
         "minimum_reverse_cost_days": estimated_days,

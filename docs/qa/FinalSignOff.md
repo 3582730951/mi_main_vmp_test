@@ -1,10 +1,8 @@
 # Final Sign-Off
 
-Status: **blocked pending reverse-cost assessment**.
+Status: **blocked**.
 
-Strict completion audit: pass for the existing external evidence set, but the
-current final gate also requires a commit-bound reverse-cost assessment report
-with `minimum_reverse_cost_days >= 365`.
+Strict completion audit: blocked.
 
 | Gate | Evidence |
 |---|---|
@@ -16,6 +14,9 @@ with `minimum_reverse_cost_days >= 365`.
 | VMProtect-tier review | `docs/qa/reports/vmprotect-tier-github-actions-verification.json` |
 | Aggregate hostile environment | `docs/qa/reports/hostile-environment.json` |
 | Reverse-cost assessment | `docs/qa/reports/reverse-cost-assessment.json` |
+| Literal objective completion | `docs/qa/reports/objective-completion-audit.json` |
 
-Open vulnerabilities: 0
-Open findings: 1 pending external reverse-cost evidence
+Open blockers:
+
+- `docs/qa/reports/capability-matrix.json` reports local VMProtect-tier implementation preconditions pass, but trusted vmprotect-tier GitHub provenance/final sign-off evidence is incomplete.
+- VMProtect-tier evidence is not satisfied by the strict completion gate.

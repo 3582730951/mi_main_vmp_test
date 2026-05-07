@@ -3,8 +3,14 @@
 
 #include <stdint.h>
 
-#ifdef _WIN32
+#ifdef VMP_PLATFORM_NO_EXPORTS
+#define VMP_EXPORT
+#elif defined(_WIN32)
+#ifdef VMP_PLATFORM_EXPORT_WINDOWS_ABI
 #define VMP_EXPORT __declspec(dllexport)
+#else
+#define VMP_EXPORT
+#endif
 #else
 #define VMP_EXPORT __attribute__((visibility("default")))
 #endif

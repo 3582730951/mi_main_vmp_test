@@ -18,7 +18,7 @@ For final sign-off, run the strict gate instead:
 ./final_acceptance.sh
 ```
 
-`final_acceptance.sh` preserves imported external evidence reports, runs the local gate, restores those reports, runs `scripts/audit/reverse_cost_gate.py --root .`, regenerates `docs/qa/FinalSignOff.md` with `scripts/audit/finalize_external_evidence.py --root .`, and then runs `scripts/audit/plan_completion_audit.py --root . --write-doc --json`. It must fail while Windows/Android GitHub Actions evidence, VMProtect-tier sidecars, manual reverse-engineering evidence, or the commit-bound reverse-cost assessment are absent. When external GitHub evidence is imported, the strict audit needs `GITHUB_TOKEN` so it can recheck verification sidecars against the live GitHub Actions API.
+`final_acceptance.sh` preserves imported external evidence reports, runs the local gate, restores those reports, runs `scripts/audit/objective_completion_audit.py --root .`, runs `scripts/audit/reverse_cost_gate.py --root .`, regenerates `docs/qa/FinalSignOff.md` with `scripts/audit/finalize_external_evidence.py --root .`, and then runs `scripts/audit/plan_completion_audit.py --root . --write-doc --json`. It must fail while any literal objective item remains blocked, Windows/Android GitHub Actions evidence, VMProtect-tier sidecars, manual reverse-engineering evidence, or the commit-bound reverse-cost assessment are absent. When external GitHub evidence is imported, the strict audit needs `GITHUB_TOKEN` so it can recheck verification sidecars against the live GitHub Actions API.
 
 ## Automated Checks
 
@@ -30,6 +30,7 @@ For final sign-off, run the strict gate instead:
 | Workflow secret references | Scan `.github/workflows/**` when present. Workflows must not reference `passwd.txt`, raw PAT/token/password values, or sensitive environment values outside `${{ secrets.* }}`. |
 | String policy | Protected release artifacts must not contain business-critical strings, API names, JNI names, authorization fields, URLs, or key material in plaintext. Until protected artifacts exist, the gate verifies that the string policy is documented and reports zero scanned artifacts. |
 | Surface minimization | Generate `docs/qa/reports/surface-minimization.json` from release artifacts. The report must show zero avoidable product, VM, OLLVM, protected plaintext, and explicit import-resolver markers. Mandatory PE/ELF/APK container signatures are recorded as observations rather than treated as removable. |
+| Objective completion | Generate `docs/qa/reports/objective-completion-audit.json` and fail final acceptance unless every literal objective item is `pass`. The report must map each prompt item to concrete artifacts and verification commands. |
 | Protected callgraph | Generate `docs/qa/reports/protected-callgraph.json` from LLVM IR evidence. The report must show that direct xrefs to protected functions are discovered before replacement, removed after callsite thunking, and that high-frequency callsite optimization preserves the configured defense floor. |
 | Available tests | Verify there is at least one automated QA test under `tests/qa/**`, at least one audit script under `scripts/audit/**`, and runnable test commands are discoverable. |
 | Performance report | Generate `docs/qa/reports/performance-sample.json` from the protected sample benchmark. The report must include baseline/protected runtime, overhead ratio, artifact size, and `defense_priority: true`. |
@@ -86,11 +87,21 @@ markers such as ASCII VM container magic, OLLVM/product names, protected seed or
 business strings, and explicit import-resolver API names in protected release
 artifacts.
 
-When available in the runner, the surface report also records optional LIEF,
-capa, and Rizin/radare2 observations so import/export, capability, and function
-inventory checks can be cross-checked by common open-source analysis tooling.
+When available in the runner, the surface and reverse-cost reports also record
+optional LIEF, capa, radare2/r2pipe, Rizin/radare2, and angr observations so
+import/export, capability, function inventory, and callgraph checks can be
+cross-checked by common open-source analysis tooling.
 
 The syscall policy is intentionally conservative: the project records that
 generic direct-syscall substitution is not implemented for evasion. Required
 system interaction must remain in approved platform adapters or fixed runtime
-APIs under `docs/SECURITY_POLICY.md`.
+APIs under `docs/SECURITY_POLICY.md`. The objective audit also verifies that
+platform adapter source stays self-contained, release artifacts minimize
+import/export/TLS surface, and the only direct syscall in release source is the
+fixed Linux x86_64 `exit` path used by the CRT-free runner.
+
+The protected-program stability gate requires behavior equivalence for the
+generated protected sample, a local Linux release runner that executes all four
+cases, Windows protected-release execution from GitHub Actions evidence,
+Android emulator APK/JNI and native smoke evidence, and iOS no-JIT/Mach-O logic
+evidence.

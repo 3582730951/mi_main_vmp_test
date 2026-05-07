@@ -3,11 +3,11 @@
   "status": "pass",
   "ci_execution": true,
   "github_actions": true,
-  "github_run_id": "25354416553",
+  "github_run_id": "25369974744",
   "github_run_attempt": "1",
   "github_workflow": "platform-windows",
   "github_repository": "3582730951/mi_main_vmp_test",
-  "github_sha": "a2b40f9d9990302ddcaa098760633722aaa99e63",
+  "github_sha": "4d851acd9e9b23bc5b9b97391d62d8498198d4b2",
   "github_event_name": "workflow_dispatch",
   "github_ref": "refs/heads/main",
   "github_ref_name": "main",
@@ -15,23 +15,23 @@
   "github_head_ref": "",
   "github_base_ref": "",
   "github_job": "build-protect-run",
-  "github_run_url": "https://github.com/3582730951/mi_main_vmp_test/actions/runs/25354416553",
+  "github_run_url": "https://github.com/3582730951/mi_main_vmp_test/actions/runs/25369974744",
   "runner_os": "Windows",
-  "runner_name": "GitHub Actions 1000004745",
+  "runner_name": "GitHub Actions 1000004807",
   "smoke_exe_executed": true,
   "dll_load_executed": true,
   "artifacts": [
     {
-      "path": "D:\\a\\mi_main_vmp_test\\mi_main_vmp_test\\build\\windows\\Release\\vmp_platform_smoke.exe",
+      "path": "D:\\a\\mi_main_vmp_test\\mi_main_vmp_test\\build\\windows\\Release\\mi_platform_smoke.exe",
       "kind": "exe",
       "bytes": 10752,
-      "sha256": "77bf9951647b178ac0180a1909f297b5827c6bb580bf4af003ae25a5373cce69"
+      "sha256": "b02e956fd45e67f0956ae3229e060285541d80f61c0557f511199b253bbed1f6"
     },
     {
-      "path": "D:\\a\\mi_main_vmp_test\\mi_main_vmp_test\\build\\windows\\Release\\vmp_platform.dll",
+      "path": "D:\\a\\mi_main_vmp_test\\mi_main_vmp_test\\build\\windows\\Release\\mi_platform.dll",
       "kind": "dll",
       "bytes": 9728,
-      "sha256": "47dbc146c0393b9ef2e3a1a53e2375cd4c5ed527a527dcad7bebfb36812659d6"
+      "sha256": "fcf95a36206544b2471ed2f4b529c1a8bb4b646ed4fd50fd419700fd8aa2dd99"
     }
   ],
   "forbidden_plaintext_hits": [],

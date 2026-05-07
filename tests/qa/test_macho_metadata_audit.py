@@ -57,6 +57,27 @@ class MachoMetadataAuditTests(unittest.TestCase):
         self.assertEqual(scan["binary_count"], 1)
         self.assertIn("!ios_adapter.o", scan["binaries"][0]["path"])
 
+    def test_empty_symbol_tables_are_not_reported_as_exposed_symbols(self) -> None:
+        findings = macho_metadata_audit.observed_findings(
+            {
+                "status": "observed",
+                "file_offset": 0,
+                "symtab": {"symoff": 0, "nsyms": 0, "stroff": 0, "strsize": 0},
+                "dysymtab": {
+                    "ilocalsym": 0,
+                    "nlocalsym": 0,
+                    "iextdefsym": 0,
+                    "nextdefsym": 0,
+                    "iundefsym": 0,
+                    "nundefsym": 0,
+                },
+                "dylibs": [],
+                "standard_name_hits": [],
+            }
+        )
+
+        self.assertEqual(findings, [])
+
     @staticmethod
     def _sample_macho() -> bytes:
         dylib_name = b"/usr/lib/libSystem.B.dylib\0"

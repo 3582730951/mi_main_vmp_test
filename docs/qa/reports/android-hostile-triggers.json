@@ -79,9 +79,9 @@
   "github_ref_protected": "true",
   "github_repository": "3582730951/mi_main_vmp_test",
   "github_run_attempt": "1",
-  "github_run_id": "25354417412",
-  "github_run_url": "https://github.com/3582730951/mi_main_vmp_test/actions/runs/25354417412",
-  "github_sha": "a2b40f9d9990302ddcaa098760633722aaa99e63",
+  "github_run_id": "25369803181",
+  "github_run_url": "https://github.com/3582730951/mi_main_vmp_test/actions/runs/25369803181",
+  "github_sha": "4d851acd9e9b23bc5b9b97391d62d8498198d4b2",
   "github_workflow": "platform-android",
   "hostile_profile_id": "android-ci-authorized-root-hook-frida-markers-v1",
   "hostile_trigger_executed": true,
@@ -93,8 +93,8 @@
   "normal_environment_findings": null,
   "raw_probe_summary": {
     "magisk_paths": [],
-    "package_text_bytes": 7421,
-    "process_text_bytes": 25786,
+    "package_text_bytes": 7420,
+    "process_text_bytes": 26868,
     "su_command_returned_uid0": false,
     "su_paths": [
       "/system/xbin/su"
@@ -103,7 +103,7 @@
     "unix_socket_table_bytes": 18892,
     "xposed_paths": []
   },
-  "runner_name": "GitHub Actions 1000004746",
+  "runner_name": "GitHub Actions 1000004804",
   "runner_os": "Linux",
   "schema": "vmp.platform.android_hostile_triggers.v1",
   "status": "pass"

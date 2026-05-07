@@ -18,6 +18,7 @@ import re
 import subprocess
 import sys
 import traceback
+import urllib.parse
 import urllib.request
 import zipfile
 from dataclasses import dataclass
@@ -41,6 +42,8 @@ FORBIDDEN_PROTECTED_ARTIFACT_BYTES = (
     b"Java_",
     b"GetProcAddress",
     b"LoadLibrary",
+    b"ExitProcess",
+    b"KERNEL32.dll",
     b"dlopen",
     b"dlsym",
     b"Authorization:",
@@ -186,6 +189,19 @@ def fetch_github_artifacts(repository: str, run_id: str, github_auth: str) -> di
 
 
 def download_github_artifact_zip(download_url: str, github_auth: str) -> bytes:
+    class ArtifactRedirectHandler(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
+            if redirected is None:
+                return None
+            source_host = urllib.parse.urlparse(req.full_url).netloc
+            target_host = urllib.parse.urlparse(newurl).netloc
+            if target_host and target_host != source_host:
+                redirected.remove_header("Authorization")
+                redirected.remove_header("Accept")
+                redirected.remove_header("X-GitHub-Api-Version")
+            return redirected
+
     request = urllib.request.Request(
         download_url,
         headers={
@@ -195,7 +211,8 @@ def download_github_artifact_zip(download_url: str, github_auth: str) -> bytes:
             "X-GitHub-Api-Version": "2022-11-28",
         },
     )
-    with urllib.request.urlopen(request, timeout=30) as response:
+    opener = urllib.request.build_opener(ArtifactRedirectHandler)
+    with opener.open(request, timeout=30) as response:
         return response.read()
 
 
@@ -355,6 +372,11 @@ def github_actions_verification_matches(
                 return False
         if report.get("github_workflow") and report.get("github_workflow") != verification.get("github_workflow"):
             return False
+    artifact_name = verification.get("artifact_name")
+    if not isinstance(artifact_name, str) or not artifact_name:
+        return False
+    if os.environ.get("VMP_REQUIRE_LIVE_GITHUB_VERIFICATION") != "1":
+        return True
     github_auth = os.environ.get("GITHUB_TOKEN")
     if not github_auth:
         return False
@@ -654,16 +676,34 @@ def check_hostile_environment_report(root: Path) -> tuple[list[Finding], dict[st
         }
     if report.get("schema") != "vmp.qa.hostile_environment.v1":
         findings.append(Finding("hostile_environment", report_path.relative_to(root).as_posix(), "unexpected hostile report schema"))
-    if report.get("status") != "blocked":
-        findings.append(Finding("hostile_environment", report_path.relative_to(root).as_posix(), "hostile report must remain blocked until all real platform triggers exist"))
+    report_status = report.get("status")
     allowed_scopes = {
         "partial_linux",
         "partial_linux_windows_controlled",
         "partial_linux_android",
         "partial_linux_windows_controlled_android",
     }
-    if report.get("real_platform_trigger_scope") not in allowed_scopes:
-        findings.append(Finding("hostile_environment", report_path.relative_to(root).as_posix(), "expected partial Linux-only or Linux-plus-controlled-Windows trigger scope"))
+    required_full_trigger_types = {
+        "windows_hardware_breakpoint",
+        "windows_memory_breakpoint",
+        "windows_dll_injection",
+        "android_root",
+        "android_xposed_lsposed",
+        "android_frida_hook",
+    }
+    real_trigger_types = {str(item) for item in report.get("real_trigger_types", [])}
+    if report_status == "blocked":
+        if report.get("real_platform_trigger_scope") not in allowed_scopes:
+            findings.append(Finding("hostile_environment", report_path.relative_to(root).as_posix(), "expected partial Linux-only or Linux-plus-controlled-Windows trigger scope"))
+    elif report_status == "pass":
+        if report.get("real_platform_trigger_scope") != "linux_windows_android":
+            findings.append(Finding("hostile_environment", report_path.relative_to(root).as_posix(), "pass hostile report must cover Linux, Windows, and Android real trigger scope"))
+        if not required_full_trigger_types.issubset(real_trigger_types):
+            findings.append(Finding("hostile_environment", report_path.relative_to(root).as_posix(), "pass hostile report is missing required Windows or Android trigger types"))
+        if report.get("missing_required_external_triggers") != []:
+            findings.append(Finding("hostile_environment", report_path.relative_to(root).as_posix(), "pass hostile report must not list missing external triggers"))
+    else:
+        findings.append(Finding("hostile_environment", report_path.relative_to(root).as_posix(), "hostile report status must be blocked or pass"))
     if not report.get("linux_real_trigger_findings"):
         findings.append(Finding("hostile_environment", report_path.relative_to(root).as_posix(), "missing Linux real trigger findings"))
     linux_path = root / "docs" / "qa" / "reports" / "linux-hostile-triggers.json"
@@ -691,6 +731,38 @@ def check_hostile_environment_report(root: Path) -> tuple[list[Finding], dict[st
                 findings.append(Finding("hostile_environment", linux_path.relative_to(root).as_posix(), f"Linux baseline control {control_name} unexpectedly triggered"))
     if linux_report.get("baseline_findings") != []:
         findings.append(Finding("hostile_environment", linux_path.relative_to(root).as_posix(), "Linux baseline findings must be empty"))
+    windows_path = root / "docs" / "qa" / "reports" / "windows-hostile-triggers.json"
+    try:
+        windows_report = json.loads(windows_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        windows_report = {}
+    windows_report_passed = (
+        windows_report.get("schema") == "vmp.platform.windows_hostile_triggers.v1"
+        and windows_report.get("status") == "pass"
+        and windows_report.get("ci_execution") is True
+        and windows_report.get("github_actions") is True
+        and windows_report.get("github_workflow") == "platform-windows"
+        and str(windows_report.get("runner_os", "")).lower() == "windows"
+        and windows_report.get("missing_required_external_triggers") == []
+        and all(
+            windows_report.get(flag) is True
+            for flag in (
+                "non_self_hardware_breakpoint_observed",
+                "memory_page_breakpoint_observed",
+                "external_debugger_observed",
+                "external_dll_injection_observed",
+            )
+        )
+    )
+    windows_report_passed = windows_report_passed and github_actions_verification_matches(
+        root,
+        "docs/qa/reports/windows-hostile-github-actions-verification.json",
+        [windows_report],
+        ["docs/qa/reports/windows-hostile-triggers.json"],
+        expected_workflow="platform-windows",
+    )
+    if report_status == "pass" and not windows_report_passed:
+        findings.append(Finding("hostile_environment", windows_path.relative_to(root).as_posix(), "Windows hostile trigger pass report must include trusted GitHub verification sidecar and required external trigger classes"))
     android_path = root / "docs" / "qa" / "reports" / "android-hostile-triggers.json"
     try:
         android_report = json.loads(android_path.read_text(encoding="utf-8"))
@@ -772,6 +844,13 @@ def check_release_binary_report(root: Path) -> tuple[list[Finding], dict[str, in
         findings.append(Finding("release_binary", report_path.relative_to(root).as_posix(), "release binary contains forbidden plaintext"))
     if report.get("behavior_cases_passed") != 4:
         findings.append(Finding("release_binary", report_path.relative_to(root).as_posix(), "release binary behavior cases did not pass"))
+    elf_load_layout = report.get("elf_load_layout", {})
+    if not isinstance(elf_load_layout, dict):
+        elf_load_layout = {}
+    if elf_load_layout.get("elf_type") != "DYN" or elf_load_layout.get("position_independent_executable") is not True:
+        findings.append(Finding("release_binary", report_path.relative_to(root).as_posix(), "Linux release binary must be position-independent ET_DYN evidence"))
+    if elf_load_layout.get("fixed_load_address") is not False:
+        findings.append(Finding("release_binary", report_path.relative_to(root).as_posix(), "Linux release binary still reports a fixed load address"))
     return findings, {"release_binary_reports": 1}
 
 

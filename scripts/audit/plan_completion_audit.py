@@ -481,6 +481,59 @@ def android_release_strength_evidence_exists(root: Path) -> bool:
     )
 
 
+def android_release_strength_missing_reasons(root: Path) -> list[str]:
+    report = read_json_report(root, "docs/qa/reports/android-apk-smoke.json")
+    so_report = read_json_report(root, "docs/qa/reports/android-emulator-smoke.json")
+    reasons: list[str] = []
+    if not report:
+        reasons.append("missing docs/qa/reports/android-apk-smoke.json")
+    if not so_report:
+        reasons.append("missing docs/qa/reports/android-emulator-smoke.json")
+    if not report or not so_report:
+        return reasons
+
+    if not github_actions_verification_matches(
+        root,
+        "docs/qa/reports/android-github-actions-verification.json",
+        [report, so_report],
+        ["docs/qa/reports/android-apk-smoke.json", "docs/qa/reports/android-emulator-smoke.json"],
+        expected_workflow="platform-android",
+    ):
+        reasons.append("missing or nonmatching android-github-actions-verification.json")
+
+    expected = {
+        "apk status": (report.get("status"), "pass"),
+        "so status": (so_report.get("status"), "pass"),
+        "apk github_actions": (report.get("github_actions"), True),
+        "so github_actions": (so_report.get("github_actions"), True),
+        "apk ci_execution": (report.get("ci_execution"), True),
+        "so ci_execution": (so_report.get("ci_execution"), True),
+        "apk github_workflow": (report.get("github_workflow"), "platform-android"),
+        "so github_workflow": (so_report.get("github_workflow"), "platform-android"),
+        "release_signing_secret_used": (report.get("release_signing_secret_used"), True),
+        "signing_key_scope": (report.get("signing_key_scope"), "github_secret_private_key_neutral_certificate"),
+        "manifest_debuggable": (report.get("manifest_debuggable"), False),
+        "protected_payload_embedded_in_jni": (report.get("protected_payload_embedded_in_jni"), True),
+        "protected_sample_asset_packaged": (report.get("protected_sample_asset_packaged"), False),
+        "native_elf_metadata_findings": (report.get("native_elf_metadata_findings"), []),
+        "core_logic_consistent": (report.get("core_logic_consistent"), True),
+        "so emulator_execution": (so_report.get("emulator_execution"), True),
+        "so protected_so_loaded": (so_report.get("protected_so_loaded"), True),
+    }
+    for label, (actual, required) in expected.items():
+        if actual != required:
+            reasons.append(f"{label} must be {required!r}, observed {actual!r}")
+    if so_report.get("core_logic_consistent") is not True and so_report.get("jni_on_load_called") is not True:
+        reasons.append("so report must show core_logic_consistent or jni_on_load_called")
+    if not android_artifact_paths_are_neutral(report):
+        reasons.append("Android artifact paths must avoid protected-product marker fragments")
+    if report.get("apk_forbidden_plaintext_hits") != []:
+        reasons.append("apk_forbidden_plaintext_hits must be empty")
+    if report.get("jni_symbol_plaintext_hits") != []:
+        reasons.append("jni_symbol_plaintext_hits must be empty")
+    return reasons
+
+
 def hostile_real_trigger_scope(root: Path) -> str:
     report = read_json_report(root, "docs/qa/reports/hostile-environment.json")
     if not report or not report.get("real_platform_triggers"):
@@ -973,6 +1026,11 @@ def github_actions_verification_matches(
                 return False
         if report.get("github_workflow") and report.get("github_workflow") != verification.get("github_workflow"):
             return False
+    artifact_name = verification.get("artifact_name")
+    if not isinstance(artifact_name, str) or not artifact_name:
+        return False
+    if os.environ.get("VMP_REQUIRE_LIVE_GITHUB_VERIFICATION") != "1":
+        return True
     github_auth = os.environ.get("GITHUB_TOKEN")
     if not github_auth:
         return False
@@ -1130,6 +1188,9 @@ def classify_hard_acceptance(root: Path, item: str, evidence: list[Evidence]) ->
             return "pass", notes
         if apk_evidence and so_evidence:
             notes.append("Android emulator APK/JNI protected-sample evidence and native .so smoke evidence exist, but they remain local test-signed evidence and do not prove release-strength Android protection")
+            missing = android_release_strength_missing_reasons(root)
+            if missing:
+                notes.append("Android release-strength missing requirements: " + "; ".join(missing))
         elif apk_evidence:
             notes.append("Android emulator APK/JNI evidence executes the generated protected sample, but native .so smoke and release-strength Android proof remain incomplete")
         elif so_evidence:
@@ -1160,7 +1221,27 @@ def classify_hard_acceptance(root: Path, item: str, evidence: list[Evidence]) ->
         if vmprotect_tier_evidence_exists(root):
             notes.append("capability matrix permits final sign-off with VMProtect-tier evidence")
             return "pass", notes
-        notes.append("local sample and narrow IR-derived i32 runtime-stub lowering for zero-, one-, two-, three-, and four-argument functions with straight-line local alloca/load/store, repeated loads from a definite local store, branch-condition loads whose defining store is on the entry-to-branch prefix, single-slot branch/merge local stores with a definite store on every lowered path, add/sub/mul/and/or/xor/select expressions, zext/sext from supported icmp-i32 predicates to i32, narrow trunc-i32-to-i1/i8/i16 followed by zext/sext back to i32 or through a wider integer and safely truncated back to i32, constant shl/lshr/ashr shifts with shift amounts in 0..31, masked dynamic shifts, eq/ne/sgt/slt/sge/sle/ugt/ult/uge/ule acyclic branch trees and select conditions, simple PHI return merges, and direct internal ordinary_add host-call cases including multiple linear calls with preserved intermediate results, local-stack stores fed by select/call values, and simple branch-return host-call paths, with nested VM branch targets rebased when serialized, pre-existing bytecode globals required to match a fresh lowering of the current body and be pass-marked immutable private globals before reuse and replacement refreshing bytecode metadata to the actual generated global, and with unmasked dynamic shifts, constant shifts outside 0..31, poison-generating nuw/nsw/exact arithmetic or shift flags, unsupported integer casts outside the narrow trunc-extension and safe wide-round-trip pattern, reserved opaque-dispatch name collisions, pre-existing outline-name collisions, loops or irreducible control flow, uninitialized branch-local loads, loads outside the lowered store path or branch prefix, stale or mutable pre-seeded bytecode globals, local memory combined with PHI shapes, global stores, and observable side-effecting unsupported IR left native, is not sufficient to prove VMProtect-tier commercial protection")
+        capability = read_json_report(root, "docs/qa/reports/capability-matrix.json")
+        lowering = read_json_report(root, "docs/qa/reports/general-ir-lowering.json")
+        crypto = read_json_report(root, "docs/qa/reports/production-crypto-key-management.json")
+        review = read_json_report(root, "docs/qa/reports/vmprotect-tier-review.json")
+        local_preconditions_pass = (
+            capability.get("status") == "pass"
+            and lowering.get("status") == "pass"
+            and lowering.get("broad_ir_lowering") is True
+            and lowering.get("bounded_i32_only") is False
+            and crypto.get("status") == "pass"
+            and crypto.get("production_crypto") is True
+            and crypto.get("static_keys_present") is False
+            and crypto.get("key_rotation_supported") is True
+            and review.get("status") == "pass"
+            and review.get("manual_review") is True
+            and review.get("open_findings") == 0
+        )
+        if local_preconditions_pass:
+            notes.append("local VMProtect-tier implementation preconditions pass, including non-bounded i32/i64 lowering and AEAD bytecode sealing, but trusted vmprotect-tier GitHub provenance/final sign-off evidence is not complete")
+        else:
+            notes.append("local VMProtect-tier implementation evidence is still incomplete or blocked")
         return "blocker", notes
     return "pass", notes
 
@@ -1176,9 +1257,41 @@ def hard_acceptance_results(root: Path, hard_acceptance: list[tuple[str, str]]) 
 
 def objective_requirement_results(root: Path) -> list[ObjectiveRequirementResult]:
     return [
+        literal_objective_completion_result(root),
         review_requirement_result(root),
         parallel_agent_requirement_result(root),
     ]
+
+
+def literal_objective_completion_result(root: Path) -> ObjectiveRequirementResult:
+    evidence = [evidence_path(root, "docs/qa/reports/objective-completion-audit.json")]
+    report = read_json_report(root, "docs/qa/reports/objective-completion-audit.json")
+    if report is None:
+        return ObjectiveRequirementResult(
+            "literal_objective_completion",
+            "blocker",
+            evidence,
+            ["objective-completion audit report is missing"],
+        )
+    status = str(report.get("status", ""))
+    checks = report.get("checks", [])
+    notes: list[str] = []
+    if status == "pass":
+        notes.append("objective-completion audit reports all literal objective items as pass")
+        return ObjectiveRequirementResult("literal_objective_completion", "pass", evidence, notes)
+    if isinstance(checks, list):
+        blocked = []
+        for item in checks:
+            if not isinstance(item, dict):
+                continue
+            item_status = item.get("status")
+            if item_status != "pass":
+                blocked.append(f"{item.get('requirement', 'unknown')}={item_status}")
+        if blocked:
+            notes.append("literal objective remains incomplete: " + ", ".join(blocked))
+    if not notes:
+        notes.append(f"objective-completion audit status is {status or 'missing'}")
+    return ObjectiveRequirementResult("literal_objective_completion", "blocker", evidence, notes)
 
 
 def review_requirement_result(root: Path) -> ObjectiveRequirementResult:

@@ -303,13 +303,42 @@ class PlanCompletionAuditTests(unittest.TestCase):
                 "No passwd.txt access: yes\n",
                 encoding="utf-8",
             )
+            write_json(root / "docs/qa/reports/objective-completion-audit.json", {
+                "schema": "vmp.qa.objective_completion_audit.v1",
+                "status": "pass",
+                "checks": [
+                    {"requirement": "1_platform_standard_feature_minimization", "status": "pass"},
+                    {"requirement": "2_vm_ollvm_standard_marker_absence", "status": "pass"},
+                    {"requirement": "3_all_strings_ciphertext_no_plaintext", "status": "pass"},
+                    {"requirement": "4_import_export_tls_minimized", "status": "pass"},
+                    {"requirement": "5_syscall_policy", "status": "pass"},
+                ],
+            })
 
             results = plan_completion_audit.objective_requirement_results(root)
 
         self.assertEqual({result.item: result.status for result in results}, {
+            "literal_objective_completion": "pass",
             "three_review_closure": "pass",
             "parallel_agent_execution": "pass",
         })
+
+    def test_objective_requirements_block_when_literal_objective_report_is_blocked(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_json(root / "docs/qa/reports/objective-completion-audit.json", {
+                "schema": "vmp.qa.objective_completion_audit.v1",
+                "status": "blocked",
+                "checks": [
+                    {"requirement": "3_all_strings_ciphertext_no_plaintext", "status": "partial"},
+                    {"requirement": "5_syscall_policy", "status": "blocked_by_policy"},
+                ],
+            })
+
+            result = plan_completion_audit.literal_objective_completion_result(root)
+
+        self.assertEqual(result.status, "blocker")
+        self.assertIn("3_all_strings_ciphertext_no_plaintext=partial", result.notes[0])
 
     def test_hard_acceptance_requires_generated_evidence(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -463,6 +492,74 @@ class PlanCompletionAuditTests(unittest.TestCase):
             write_json(root / "docs/qa/reports/android-apk-smoke.json", report)
 
             self.assertFalse(plan_completion_audit.android_release_strength_evidence_exists(root))
+
+    def test_android_release_strength_missing_reasons_are_explicit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            write_json(root / "docs/qa/reports/android-apk-smoke.json", {
+                "status": "pass",
+                "github_actions": False,
+                "ci_execution": False,
+                "github_workflow": None,
+                "release_signing_secret_used": False,
+                "signing_key_scope": "local_test_ec_certificate",
+                "artifacts": [{"path": "build/android-apk-smoke/mi-smoke.apk"}],
+                "manifest_debuggable": False,
+                "protected_payload_embedded_in_jni": True,
+                "protected_sample_asset_packaged": False,
+                "apk_forbidden_plaintext_hits": [],
+                "jni_symbol_plaintext_hits": [],
+                "native_elf_metadata_findings": [],
+                "core_logic_consistent": True,
+            })
+            write_json(root / "docs/qa/reports/android-emulator-smoke.json", {
+                "status": "pass",
+                "github_actions": False,
+                "ci_execution": False,
+                "github_workflow": None,
+                "emulator_execution": True,
+                "protected_so_loaded": True,
+                "core_logic_consistent": True,
+            })
+
+            reasons = plan_completion_audit.android_release_strength_missing_reasons(root)
+
+        joined = "; ".join(reasons)
+        self.assertIn("android-github-actions-verification", joined)
+        self.assertIn("apk github_actions", joined)
+        self.assertIn("release_signing_secret_used", joined)
+        self.assertIn("signing_key_scope", joined)
+
+    def test_blocked_final_signoff_is_not_accepted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            signoff = root / "docs/qa/FinalSignOff.md"
+            signoff.parent.mkdir(parents=True)
+            signoff.write_text(
+                "# Final Sign-Off\n\n"
+                "Status: **blocked**.\n\n"
+                "Strict completion audit: blocked.\n",
+                encoding="utf-8",
+            )
+
+            self.assertFalse(plan_completion_audit.final_signoff_evidence_exists(root))
+
+            signoff.write_text(
+                "# Final Sign-Off\n\n"
+                "Status: **signed off**.\n\n"
+                "Strict completion audit: pass.\n\n"
+                "Open vulnerabilities: 0\n"
+                "Open findings: 0\n",
+                encoding="utf-8",
+            )
+
+            with mock.patch.object(plan_completion_audit, "windows_github_actions_evidence_exists", return_value=True), \
+                mock.patch.object(plan_completion_audit, "android_release_strength_evidence_exists", return_value=True), \
+                mock.patch.object(plan_completion_audit, "hostile_full_coverage_exists", return_value=True), \
+                mock.patch.object(plan_completion_audit, "vmprotect_tier_evidence_exists", return_value=True), \
+                mock.patch.object(plan_completion_audit, "ida_ollydbg_manual_review_evidence_exists", return_value=True), \
+                mock.patch.object(plan_completion_audit, "reverse_cost_evidence_exists", return_value=True):
+                self.assertTrue(plan_completion_audit.final_signoff_evidence_exists(root))
 
     def test_android_release_strength_gate_rejects_wrong_workflow(self):
         with tempfile.TemporaryDirectory() as tmp:

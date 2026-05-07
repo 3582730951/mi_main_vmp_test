@@ -86,6 +86,8 @@ class ArtifactSurfacePolicy:
                 SurfaceCategory.IMPORT_RESOLVER_NAME: (
                     b"GetProcAddress",
                     b"LoadLibrary",
+                    b"ExitProcess",
+                    b"KERNEL32.dll",
                     b"dlopen",
                     b"dlsym",
                     b"Java_",

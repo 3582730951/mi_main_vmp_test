@@ -58,6 +58,8 @@ extern "C" int secret_call(int);
 extern "C" int secret_call_chain(int);
 extern "C" int secret_call_pair(int);
 extern "C" int secret_call_branch(int);
+extern "C" std::int64_t secret_i64_arith(std::int64_t, std::int64_t);
+extern "C" std::int64_t secret_i64_local(std::int64_t);
 
 int main() {
     if (license_check(7) != 49) {
@@ -460,6 +462,24 @@ int main() {
     }
     if (secret_call_branch(-1) != 2) {
         std::cerr << "secret_call_branch false path mismatch\n";
+        return EXIT_FAILURE;
+    }
+    if (static_cast<std::uint64_t>(secret_i64_arith(0x100000000LL, 0x55aa55aa55aa55aaLL)) !=
+        0xc28406d94b0c8f3aULL) {
+        std::cerr << "secret_i64_arith VM path mismatch\n";
+        return EXIT_FAILURE;
+    }
+    if (static_cast<std::uint64_t>(secret_i64_arith(0x7fffffffffffffffLL, 0x1234LL)) !=
+        0x923456789abba96bULL) {
+        std::cerr << "secret_i64_arith high-bit path mismatch\n";
+        return EXIT_FAILURE;
+    }
+    if (static_cast<std::uint64_t>(secret_i64_local(0x100000000LL)) != 0xcafebabc12345679ULL) {
+        std::cerr << "secret_i64_local VM path mismatch\n";
+        return EXIT_FAILURE;
+    }
+    if (static_cast<std::uint64_t>(secret_i64_local(-5)) != 0xcafebabeedcba984ULL) {
+        std::cerr << "secret_i64_local negative path mismatch\n";
         return EXIT_FAILURE;
     }
     std::cout << "llvm runtime entry smoke passed\n";

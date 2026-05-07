@@ -1,0 +1,234 @@
+{
+  "gate": "report_only_runtime_preserving",
+  "generated_at_utc": "2026-05-05T12:41:50.280947Z",
+  "missing_artifacts": [],
+  "observed_surface_findings": 6,
+  "policy_note": "Mach-O load commands, segment names, symbol tables, and code signatures are observed for iOS artifact QA. The default gate is report-only because mutating these fields can break linking, loading, or Apple code signing; use --strict only for controlled experiments.",
+  "scanned_artifacts": [
+    {
+      "artifact": "build/ios-logic-local/libmi_platform.a",
+      "binaries": [
+        {
+          "class": "Mach-O 64-bit",
+          "code_signature": null,
+          "cpu_type": 16777228,
+          "diagnostics": [],
+          "dylibs": [],
+          "dysymtab": {
+            "iextdefsym": 0,
+            "ilocalsym": 0,
+            "iundefsym": 2,
+            "nextdefsym": 2,
+            "nlocalsym": 0,
+            "nundefsym": 0
+          },
+          "encryption_info": null,
+          "endian": "little",
+          "file_offset": 232,
+          "filetype": "MH_OBJECT",
+          "flags": 8192,
+          "load_command_count": 4,
+          "load_commands": [
+            "LC_SEGMENT_64",
+            "LC_VERSION_MIN_IPHONEOS",
+            "LC_SYMTAB",
+            "LC_DYSYMTAB"
+          ],
+          "magic": "cffaedfe",
+          "path": "build/ios-logic-local/libmi_platform.a!ios_adapter.o",
+          "section_names": [
+            "__TEXT,__text"
+          ],
+          "segment_names": [],
+          "sizeof_load_commands": 272,
+          "standard_name_hits": [
+            {
+              "offset": 352,
+              "pattern": "__TEXT"
+            },
+            {
+              "offset": 336,
+              "pattern": "__text"
+            }
+          ],
+          "status": "observed",
+          "symtab": {
+            "nsyms": 2,
+            "stroff": 388,
+            "strsize": 16,
+            "symoff": 356
+          }
+        },
+        {
+          "class": "Mach-O 64-bit",
+          "code_signature": null,
+          "cpu_type": 16777228,
+          "diagnostics": [],
+          "dylibs": [],
+          "dysymtab": {
+            "iextdefsym": 0,
+            "ilocalsym": 0,
+            "iundefsym": 2,
+            "nextdefsym": 2,
+            "nlocalsym": 0,
+            "nundefsym": 0
+          },
+          "encryption_info": null,
+          "endian": "little",
+          "file_offset": 720,
+          "filetype": "MH_OBJECT",
+          "flags": 8192,
+          "load_command_count": 4,
+          "load_commands": [
+            "LC_SEGMENT_64",
+            "LC_VERSION_MIN_IPHONEOS",
+            "LC_SYMTAB",
+            "LC_DYSYMTAB"
+          ],
+          "magic": "cffaedfe",
+          "path": "build/ios-logic-local/libmi_platform.a!platform_common.o",
+          "section_names": [
+            "__TEXT,__text"
+          ],
+          "segment_names": [],
+          "sizeof_load_commands": 272,
+          "standard_name_hits": [
+            {
+              "offset": 840,
+              "pattern": "__TEXT"
+            },
+            {
+              "offset": 824,
+              "pattern": "__text"
+            }
+          ],
+          "status": "observed",
+          "symtab": {
+            "nsyms": 2,
+            "stroff": 508,
+            "strsize": 16,
+            "symoff": 476
+          }
+        }
+      ],
+      "binary_count": 2,
+      "container": "ar_archive",
+      "diagnostics": [],
+      "external_tool_observations": {
+        "lief": {
+          "status": "unsupported_format",
+          "tool": "lief"
+        },
+        "llvm_objdump": {
+          "commands_sample": [
+            "LC_DYSYMTAB",
+            "LC_SEGMENT_64",
+            "LC_SYMTAB",
+            "LC_VERSION_MIN_IPHONEOS"
+          ],
+          "load_command_count": 8,
+          "status": "observed",
+          "tool": "llvm-objdump-14"
+        },
+        "otool": {
+          "install_hint": "available on macOS runners",
+          "status": "unavailable",
+          "tool": "otool"
+        }
+      },
+      "metadata_observed_findings": [
+        {
+          "category": "macho_symbol_table_present",
+          "evidence": {
+            "nsyms": 2,
+            "stroff": 388,
+            "strsize": 16,
+            "symoff": 356
+          },
+          "offset": 232,
+          "pattern": "LC_SYMTAB"
+        },
+        {
+          "category": "macho_dynamic_symbol_table_present",
+          "evidence": {
+            "iextdefsym": 0,
+            "ilocalsym": 0,
+            "iundefsym": 2,
+            "nextdefsym": 2,
+            "nlocalsym": 0,
+            "nundefsym": 0
+          },
+          "offset": 232,
+          "pattern": "LC_DYSYMTAB"
+        },
+        {
+          "category": "macho_standard_name_string",
+          "evidence": [
+            {
+              "offset": 352,
+              "pattern": "__TEXT"
+            },
+            {
+              "offset": 336,
+              "pattern": "__text"
+            }
+          ],
+          "offset": null,
+          "pattern": "standard Mach-O segment/section name"
+        },
+        {
+          "category": "macho_symbol_table_present",
+          "evidence": {
+            "nsyms": 2,
+            "stroff": 508,
+            "strsize": 16,
+            "symoff": 476
+          },
+          "offset": 720,
+          "pattern": "LC_SYMTAB"
+        },
+        {
+          "category": "macho_dynamic_symbol_table_present",
+          "evidence": {
+            "iextdefsym": 0,
+            "ilocalsym": 0,
+            "iundefsym": 2,
+            "nextdefsym": 2,
+            "nlocalsym": 0,
+            "nundefsym": 0
+          },
+          "offset": 720,
+          "pattern": "LC_DYSYMTAB"
+        },
+        {
+          "category": "macho_standard_name_string",
+          "evidence": [
+            {
+              "offset": 840,
+              "pattern": "__TEXT"
+            },
+            {
+              "offset": 824,
+              "pattern": "__text"
+            }
+          ],
+          "offset": null,
+          "pattern": "standard Mach-O segment/section name"
+        }
+      ],
+      "surface_observed_findings": []
+    }
+  ],
+  "schema": "vmp.qa.ios_macho_metadata.v1",
+  "status": "pass",
+  "strict_surface_findings": 0,
+  "tooling": {
+    "optional_tools": [
+      "lief",
+      "otool",
+      "llvm-objdump"
+    ],
+    "primary_parser": "built-in Mach-O/fat/ar parser"
+  },
+  "unsupported_artifacts": []
+}

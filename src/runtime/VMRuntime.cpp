@@ -493,28 +493,28 @@ RuntimeArtifact parseRuntimeArtifact(const std::uint8_t *bytes, std::size_t byte
     return artifact;
 }
 
-std::int32_t executeRuntimeEntry(const std::uint8_t *bytecode,
-                                 std::uint64_t bytecodeSize,
-                                 std::int32_t arg0,
-                                 std::int32_t arg1,
-                                 std::int32_t arg2,
-                                 std::int32_t arg3,
-                                 unsigned argCount) {
+std::uint64_t executeRuntimeEntry(const std::uint8_t *bytecode,
+                                  std::uint64_t bytecodeSize,
+                                  std::uint64_t arg0,
+                                  std::uint64_t arg1,
+                                  std::uint64_t arg2,
+                                  std::uint64_t arg3,
+                                  unsigned argCount) {
     try {
         const RuntimeArtifact artifact = parseRuntimeArtifact(bytecode, static_cast<std::size_t>(bytecodeSize));
         vmp::runtime::VMContext ctx;
         ctx.stack.resize(256);
         if (argCount >= 1U) {
-            ctx.regs[1] = static_cast<std::uint32_t>(arg0);
+            ctx.regs[1] = arg0;
         }
         if (argCount >= 2U) {
-            ctx.regs[2] = static_cast<std::uint32_t>(arg1);
+            ctx.regs[2] = arg1;
         }
         if (argCount >= 3U) {
-            ctx.regs[3] = static_cast<std::uint32_t>(arg2);
+            ctx.regs[3] = arg2;
         }
         if (argCount >= 4U) {
-            ctx.regs[4] = static_cast<std::uint32_t>(arg3);
+            ctx.regs[4] = arg3;
         }
         ctx.hostCalls[1] = [](vmp::runtime::VMContext &ctx, std::uint8_t) {
             const auto lhs = static_cast<std::uint32_t>(ctx.regs[14] & 0xffffffffULL);
@@ -531,11 +531,11 @@ std::int32_t executeRuntimeEntry(const std::uint8_t *bytecode,
         };
         const auto status = vmp::runtime::executeEncryptedChunk(ctx, artifact.chunk, artifact.map, artifact.seedMaterial);
         if (status != vmp::runtime::VMStatus::Ok) {
-            return -2147483647;
+            return UINT64_C(0xffffffff80000001);
         }
-        return static_cast<std::int32_t>(ctx.returnValue & 0xffffffffULL);
+        return ctx.returnValue;
     } catch (...) {
-        return -2147483646;
+        return UINT64_C(0xffffffff80000002);
     }
 }
 
@@ -543,20 +543,24 @@ std::int32_t executeRuntimeEntry(const std::uint8_t *bytecode,
 
 extern "C" std::int32_t vmp_runtime_entry_i32(const std::uint8_t *bytecode,
                                                std::uint64_t bytecodeSize) {
-    return executeRuntimeEntry(bytecode, bytecodeSize, 0, 0, 0, 0, 0);
+    return static_cast<std::int32_t>(executeRuntimeEntry(bytecode, bytecodeSize, 0, 0, 0, 0, 0) & 0xffffffffULL);
 }
 
 extern "C" std::int32_t vmp_runtime_entry_i32_i32(const std::uint8_t *bytecode,
                                                    std::uint64_t bytecodeSize,
                                                    std::int32_t arg) {
-    return executeRuntimeEntry(bytecode, bytecodeSize, arg, 0, 0, 0, 1);
+    return static_cast<std::int32_t>(
+        executeRuntimeEntry(bytecode, bytecodeSize, static_cast<std::uint32_t>(arg), 0, 0, 0, 1) & 0xffffffffULL);
 }
 
 extern "C" std::int32_t vmp_runtime_entry_i32_i32_i32(const std::uint8_t *bytecode,
                                                        std::uint64_t bytecodeSize,
                                                        std::int32_t arg0,
                                                        std::int32_t arg1) {
-    return executeRuntimeEntry(bytecode, bytecodeSize, arg0, arg1, 0, 0, 2);
+    return static_cast<std::int32_t>(
+        executeRuntimeEntry(bytecode, bytecodeSize, static_cast<std::uint32_t>(arg0),
+                            static_cast<std::uint32_t>(arg1), 0, 0, 2) &
+        0xffffffffULL);
 }
 
 extern "C" std::int32_t vmp_runtime_entry_i32_i32_i32_i32(const std::uint8_t *bytecode,
@@ -564,7 +568,10 @@ extern "C" std::int32_t vmp_runtime_entry_i32_i32_i32_i32(const std::uint8_t *by
                                                            std::int32_t arg0,
                                                            std::int32_t arg1,
                                                            std::int32_t arg2) {
-    return executeRuntimeEntry(bytecode, bytecodeSize, arg0, arg1, arg2, 0, 3);
+    return static_cast<std::int32_t>(
+        executeRuntimeEntry(bytecode, bytecodeSize, static_cast<std::uint32_t>(arg0),
+                            static_cast<std::uint32_t>(arg1), static_cast<std::uint32_t>(arg2), 0, 3) &
+        0xffffffffULL);
 }
 
 extern "C" std::int32_t vmp_runtime_entry_i32_i32_i32_i32_i32(const std::uint8_t *bytecode,
@@ -573,6 +580,52 @@ extern "C" std::int32_t vmp_runtime_entry_i32_i32_i32_i32_i32(const std::uint8_t
                                                                std::int32_t arg1,
                                                                std::int32_t arg2,
                                                                std::int32_t arg3) {
-    return executeRuntimeEntry(bytecode, bytecodeSize, arg0, arg1, arg2, arg3, 4);
+    return static_cast<std::int32_t>(
+        executeRuntimeEntry(bytecode, bytecodeSize, static_cast<std::uint32_t>(arg0),
+                            static_cast<std::uint32_t>(arg1), static_cast<std::uint32_t>(arg2),
+                            static_cast<std::uint32_t>(arg3), 4) &
+        0xffffffffULL);
+}
+
+extern "C" std::int64_t vmp_runtime_entry_i64(const std::uint8_t *bytecode,
+                                               std::uint64_t bytecodeSize) {
+    return static_cast<std::int64_t>(executeRuntimeEntry(bytecode, bytecodeSize, 0, 0, 0, 0, 0));
+}
+
+extern "C" std::int64_t vmp_runtime_entry_i64_i64(const std::uint8_t *bytecode,
+                                                   std::uint64_t bytecodeSize,
+                                                   std::int64_t arg) {
+    return static_cast<std::int64_t>(executeRuntimeEntry(bytecode, bytecodeSize, static_cast<std::uint64_t>(arg),
+                                                        0, 0, 0, 1));
+}
+
+extern "C" std::int64_t vmp_runtime_entry_i64_i64_i64(const std::uint8_t *bytecode,
+                                                       std::uint64_t bytecodeSize,
+                                                       std::int64_t arg0,
+                                                       std::int64_t arg1) {
+    return static_cast<std::int64_t>(executeRuntimeEntry(bytecode, bytecodeSize, static_cast<std::uint64_t>(arg0),
+                                                        static_cast<std::uint64_t>(arg1), 0, 0, 2));
+}
+
+extern "C" std::int64_t vmp_runtime_entry_i64_i64_i64_i64(const std::uint8_t *bytecode,
+                                                           std::uint64_t bytecodeSize,
+                                                           std::int64_t arg0,
+                                                           std::int64_t arg1,
+                                                           std::int64_t arg2) {
+    return static_cast<std::int64_t>(executeRuntimeEntry(bytecode, bytecodeSize, static_cast<std::uint64_t>(arg0),
+                                                        static_cast<std::uint64_t>(arg1),
+                                                        static_cast<std::uint64_t>(arg2), 0, 3));
+}
+
+extern "C" std::int64_t vmp_runtime_entry_i64_i64_i64_i64_i64(const std::uint8_t *bytecode,
+                                                               std::uint64_t bytecodeSize,
+                                                               std::int64_t arg0,
+                                                               std::int64_t arg1,
+                                                               std::int64_t arg2,
+                                                               std::int64_t arg3) {
+    return static_cast<std::int64_t>(executeRuntimeEntry(bytecode, bytecodeSize, static_cast<std::uint64_t>(arg0),
+                                                        static_cast<std::uint64_t>(arg1),
+                                                        static_cast<std::uint64_t>(arg2),
+                                                        static_cast<std::uint64_t>(arg3), 4));
 }
 #endif

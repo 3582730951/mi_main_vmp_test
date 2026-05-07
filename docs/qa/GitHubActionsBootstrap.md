@@ -78,6 +78,19 @@ Download and preserve the workflow artifacts containing these reports:
 - `docs/qa/reports/vmprotect-tier-review.json`
 - `docs/qa/reports/vmprotect-tier-github-actions-verification.json`
 - `docs/qa/reports/reverse-cost-assessment.json`
+- `docs/qa/reports/objective-completion-audit.json`
+- `docs/qa/reports/platform-string-residuals.json`
+
+The reverse-cost workflow calls `scripts/audit/install_reverse_tooling.sh` to
+install and record optional GitHub-hosted analysis tooling, including LIEF,
+Mandiant capa/capa-rules, Mandiant FLOSS, radare2/r2pipe, Rizin, angr, and
+Ghidra when explicitly enabled. These tools add repeatable metadata,
+capability-scan, recovered-string, xref, and callgraph inventory evidence around
+the existing LLVM protected-callgraph evidence when available, but the local gate
+remains deterministic without them.
+It also writes `platform-string-residuals.json` so remaining Android/iOS
+printable byte runs are categorized by platform provenance without recording raw
+string values.
 
 Then rerun:
 

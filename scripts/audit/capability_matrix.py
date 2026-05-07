@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Generate a machine-readable VMProtect-tier capability matrix.
+"""Generate a machine-readable local capability matrix.
 
-The report is evidence, not a waiver: missing production lowering, production
-cryptography, Windows CI execution, and hostile-platform triggers keep final
-sign-off blocked.
+The report is evidence, not a waiver: local smoke coverage and generated
+sidecars are separate from external commercial-tier proof.
 """
 
 from __future__ import annotations
@@ -52,6 +51,12 @@ def hostile_platform_status() -> str:
     report = json_report("docs/qa/reports/hostile-environment.json")
     if not report:
         return "missing"
+    if (
+        report.get("status") == "pass"
+        and report.get("real_platform_trigger_scope") == "linux_windows_android"
+        and report.get("missing_required_external_triggers") == []
+    ):
+        return "pass"
     scope = str(report.get("real_platform_trigger_scope", "none"))
     if scope == "none":
         return "blocked"
@@ -60,6 +65,8 @@ def hostile_platform_status() -> str:
 
 def hostile_platform_gap() -> str:
     status = hostile_platform_status()
+    if status == "pass":
+        return "Imported GitHub Actions evidence covers Linux probes plus Windows hardware/memory breakpoint, debugger, DLL injection, and Android root/Xposed/LSPosed/Frida/hook trigger classes."
     if status == "partial_linux":
         return "Synthetic and partial Linux trigger evidence exists; Android emulator baseline probes may also exist, but Windows hardware/page breakpoints/DLL injection and Android root/Xposed/LSPosed/Frida/hook hostile-trigger coverage are missing."
     if status == "partial_linux_android":
@@ -69,6 +76,42 @@ def hostile_platform_gap() -> str:
     if status == "partial_linux_windows_controlled_android":
         return "Synthetic, partial Linux, controlled Windows, and Android root/debuggable baseline trigger evidence exists; external Windows debugger/hardware breakpoint/DLL injection and Android Xposed/LSPosed/Frida/hook triggers are missing."
     return "Synthetic policy coverage exists, but required real Windows and Android hostile trigger evidence is missing."
+
+
+def android_emulator_gap() -> str:
+    report = json_report("docs/qa/reports/android-apk-smoke.json")
+    if (
+        report
+        and report.get("status") == "pass"
+        and report.get("github_actions") is True
+        and report.get("ci_execution") is True
+        and report.get("release_signing_secret_used") is True
+    ):
+        return "Secret-backed GitHub Actions evidence exists for non-debuggable APK/JNI protected-sample execution and native .so smoke; final sign-off is still held by VMProtect-tier and strict objective blockers."
+    return "Release-like local emulator APK/JNI smoke embeds the protected payload inside the JNI .so, but signed production release evidence and hostile-env evidence are missing."
+
+
+def windows_ci_status() -> str:
+    acceptance = json_report("docs/qa/reports/windows-acceptance.json")
+    protected = json_report("docs/qa/reports/windows-protected-release.json")
+    if (
+        acceptance
+        and protected
+        and acceptance.get("status") == "pass"
+        and protected.get("status") == "pass"
+        and acceptance.get("github_actions") is True
+        and protected.get("github_actions") is True
+        and acceptance.get("ci_execution") is True
+        and protected.get("ci_execution") is True
+    ):
+        return "pass"
+    return "blocked"
+
+
+def windows_ci_gap() -> str:
+    if windows_ci_status() == "pass":
+        return "GitHub Actions Windows runner evidence exists for protected .exe execution, .dll load, and protected release execution."
+    return "Local cross-build is not GitHub Actions Windows execution; Windows hard acceptance requires reports with ci_execution=true from a Windows GitHub Actions runner."
 
 
 def file_sha256(path: Path) -> str | None:
@@ -171,24 +214,26 @@ def main() -> int:
             "name": "anti_tamper",
             "status": "partial",
             "evidence": ["src/core/Bytecode.cpp", "tests/core/core_tests.cpp"],
-            "gap": "Bytecode auth tag rejects sample payload and opcode-map tampering; production cryptographic primitive and platform seal are incomplete.",
+            "gap": "Bytecode payloads are AEAD sealed and reject sample payload/opcode-map tampering; external key-custody and platform seal provenance remain separate final-signoff evidence.",
         },
         {
             "name": "android_emulator",
             "status": json_status("docs/qa/reports/android-apk-smoke.json"),
             "evidence": ["docs/qa/reports/android-apk-smoke.json", "tests/platform/android_apk_smoke.sh"],
-            "gap": "Release-like local emulator APK/JNI smoke embeds the protected payload inside the JNI .so, but signed production release evidence and hostile-env evidence are missing.",
+            "gap": android_emulator_gap(),
         },
         {
             "name": "windows_ci",
-            "status": "blocked",
+            "status": windows_ci_status(),
             "evidence": [
                 "docs/qa/reports/windows-cross-build.json",
                 "docs/qa/reports/windows-protected-cross-build.json",
+                "docs/qa/reports/windows-acceptance.json",
+                "docs/qa/reports/windows-protected-release.json",
                 "docs/qa/ExternalEvidenceRequest.md",
                 ".github/workflows/platform-windows.yml",
             ],
-            "gap": "Local cross-build is not GitHub Actions Windows execution; Windows hard acceptance requires reports with ci_execution=true from a Windows GitHub Actions runner.",
+            "gap": windows_ci_gap(),
         },
     ]
     status = "blocked" if any(item["status"] != "pass" for item in capabilities) else "pass"

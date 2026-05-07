@@ -28,7 +28,7 @@ opt-14 \
   -o "${OUT_DIR}/sample.protected.ll" \
   2>"${OUT_DIR}/plugin.log"
 
-grep -Fxq 'VMPPassPlugin report: selected_functions=73 lowered_functions=56 replaced_functions=56 unsupported_functions=17 stages=16' "${OUT_DIR}/plugin.log"
+grep -Fxq 'VMPPassPlugin report: selected_functions=75 lowered_functions=58 replaced_functions=58 unsupported_functions=17 stages=16' "${OUT_DIR}/plugin.log"
 sed -n 's/^VMPPassPlugin stage_manifest_json: //p' "${OUT_DIR}/plugin.log" >"${OUT_DIR}/vmp-stage-manifest.json"
 python3 - "${OUT_DIR}/vmp-stage-manifest.json" <<'PY'
 import json
@@ -37,31 +37,107 @@ manifest = json.load(open(sys.argv[1], encoding="utf-8"))
 assert manifest["schema"] == "vmp.llvm.stage_manifest.v1"
 pipeline = manifest["pipeline"]
 assert pipeline["executed_count"] == 16
-assert pipeline["implemented_count"] == 9
-assert pipeline["placeholder_noop_count"] == 6
+assert pipeline["implemented_count"] == 15
+assert pipeline["placeholder_noop_count"] == 0
 assert pipeline["report_only_count"] == 1
 stages = {stage["name"]: stage for stage in manifest["stages"]}
-for name in (
-    "vmp-ir-normalize",
-    "vmp-flatten",
-    "vmp-const-string-encryption",
-    "vmp-opcode-randomize",
-    "vmp-bytecode-encrypt",
-    "vmp-nesting",
-):
-    assert stages[name]["kind"] == "placeholder_noop"
-    assert stages[name]["implemented"] is False
-    assert stages[name]["capability_effects"] == []
+assert not [stage for stage in manifest["stages"] if stage["kind"] == "placeholder_noop"]
 assert stages["vmp-config-load"]["kind"] == "config"
 assert stages["vmp-config-load"]["implemented"] is True
+assert stages["vmp-ir-normalize"]["kind"] == "normalize"
+assert stages["vmp-ir-normalize"]["implemented"] is True
+assert "ir_normalization.canonical_integer_forms" in stages["vmp-ir-normalize"]["capability_effects"]
+assert stages["vmp-flatten"]["implemented"] is True
+assert "mutation_obfuscation.opt_in_switch_flattening" in stages["vmp-flatten"]["capability_effects"]
 assert stages["vmp-hotspot-policy"]["implemented"] is True
 assert "performance.hotspot_static_policy" in stages["vmp-hotspot-policy"]["capability_effects"]
 assert stages["vmp-anti-analysis-hooks"]["implemented"] is True
 assert "anti_analysis.decompiler_traps" in stages["vmp-anti-analysis-hooks"]["capability_effects"]
 assert stages["vmp-ir-to-bytecode"]["implemented"] is True
 assert "code_virtualization.bytecode_lowering" in stages["vmp-ir-to-bytecode"]["capability_effects"]
+assert stages["vmp-const-string-encryption"]["implemented"] is True
+assert "string_hiding.private_const_string_ctor_decode" in stages["vmp-const-string-encryption"]["capability_effects"]
+assert stages["vmp-opcode-randomize"]["implemented"] is True
+assert "code_virtualization.opcode_map_randomization" in stages["vmp-opcode-randomize"]["capability_effects"]
+assert stages["vmp-bytecode-encrypt"]["implemented"] is True
+assert "code_virtualization.integrated_payload_sealing" in stages["vmp-bytecode-encrypt"]["capability_effects"]
+assert stages["vmp-nesting"]["implemented"] is True
+assert "code_virtualization.vm_level_policy_encoding" in stages["vmp-nesting"]["capability_effects"]
 assert "callsite_obfuscation.per_callsite_thunks" in stages["vmp-function-replacement"]["capability_effects"]
 PY
+cat >"${OUT_DIR}/normalize.ll" <<'LL'
+define i32 @secret_normalize_cmp(i32 %x) {
+entry:
+  %cmp = icmp sgt i32 10, %x
+  %out = zext i1 %cmp to i32
+  ret i32 %out
+}
+
+define i32 @secret_normalize_add(i32 %x) {
+entry:
+  %out = add i32 7, %x
+  ret i32 %out
+}
+LL
+opt-14 \
+  -load-pass-plugin "${PLUGIN}" \
+  -passes="vmp-function-marker,vmp-ir-normalize" \
+  -S "${OUT_DIR}/normalize.ll" \
+  -o "${OUT_DIR}/normalize.protected.ll" \
+  2>"${OUT_DIR}/normalize.log"
+grep -Fq '%cmp = icmp slt i32 %x, 10' "${OUT_DIR}/normalize.protected.ll"
+grep -Fq '%out = add i32 %x, 7' "${OUT_DIR}/normalize.protected.ll"
+grep -Fq '!vmp.ir.normalization' "${OUT_DIR}/normalize.protected.ll"
+cat >"${OUT_DIR}/const-string.ll" <<'LL'
+@.secret.text = private unnamed_addr constant [12 x i8] c"secret_text\00"
+
+declare i32 @puts(i8*)
+
+define i32 @secret_string_user() {
+entry:
+  %p = getelementptr inbounds [12 x i8], [12 x i8]* @.secret.text, i64 0, i64 0
+  %r = call i32 @puts(i8* %p)
+  ret i32 %r
+}
+LL
+opt-14 \
+  -load-pass-plugin "${PLUGIN}" \
+  -passes="vmp-function-marker,vmp-const-string-encryption" \
+  -S "${OUT_DIR}/const-string.ll" \
+  -o "${OUT_DIR}/const-string.protected.ll" \
+  2>"${OUT_DIR}/const-string.log"
+if grep -Fq 'secret_text' "${OUT_DIR}/const-string.protected.ll"; then
+  echo "const string plaintext survived encryption pass" >&2
+  exit 66
+fi
+grep -Fq '@llvm.global_ctors' "${OUT_DIR}/const-string.protected.ll"
+grep -Fq '@vmp.conststr.decode' "${OUT_DIR}/const-string.protected.ll"
+grep -Fq 'xor i8' "${OUT_DIR}/const-string.protected.ll"
+grep -Fq '!vmp.const_string.encryption' "${OUT_DIR}/const-string.protected.ll"
+cat >"${OUT_DIR}/flatten.ll" <<'LL'
+define i32 @secret_flatten(i32 %x) #0 {
+entry:
+  %cmp = icmp sgt i32 %x, 10
+  br i1 %cmp, label %hot, label %cold
+
+hot:
+  ret i32 1
+
+cold:
+  ret i32 0
+}
+
+attributes #0 = { "vmp.flatten" }
+LL
+opt-14 \
+  -load-pass-plugin "${PLUGIN}" \
+  -passes="vmp-function-marker,vmp-flatten" \
+  -S "${OUT_DIR}/flatten.ll" \
+  -o "${OUT_DIR}/flatten.protected.ll" \
+  2>"${OUT_DIR}/flatten.log"
+grep -Fq 'vmp.flatten.dispatch' "${OUT_DIR}/flatten.protected.ll"
+grep -Fq 'switch i32 %vmp.flatten.state' "${OUT_DIR}/flatten.protected.ll"
+grep -Fq '!vmp.flattened' "${OUT_DIR}/flatten.protected.ll"
 FileCheck-14 --input-file="${OUT_DIR}/sample.protected.ll" "${ROOT_DIR}/tests/core/fixtures/sample-protected.check"
 if grep -q '@vmp.bytecode.secret_side_effect' "${OUT_DIR}/sample.protected.ll"; then
   echo "side-effecting function was materialized as bytecode" >&2
@@ -170,6 +246,12 @@ if grep -Eq '^define i32 @.*!vmp\.bytecode.*!vmp\.unsupported|^define i32 @.*!vm
   echo "lowered function kept unsupported metadata" >&2
   exit 57
 fi
+grep -Fq '@vmp.bytecode.secret_i64_arith = private unnamed_addr constant' "${OUT_DIR}/sample.protected.ll"
+grep -Fq '@vmp.bytecode.secret_i64_local = private unnamed_addr constant' "${OUT_DIR}/sample.protected.ll"
+grep -Eq '^define i64 @secret_i64_arith\(i64 %x, i64 %y\).* !vmp\.replaced' "${OUT_DIR}/sample.protected.ll"
+grep -Eq '^define i64 @secret_i64_local\(i64 %x\).* !vmp\.replaced' "${OUT_DIR}/sample.protected.ll"
+grep -Eq 'call i64 @vmp_runtime_entry_i64_i64_i64\(i8\* .* i64 [0-9]+, i64 %x, i64 %y\)' "${OUT_DIR}/sample.protected.ll"
+grep -Eq 'call i64 @vmp_runtime_entry_i64_i64\(i8\* .* i64 [0-9]+, i64 %x\)' "${OUT_DIR}/sample.protected.ll"
 if grep -Eq '^define internal i32 @.*\.vmp\.outline.*!vmp\.(protect|bytecode|lowering|replaced|unsupported)' "${OUT_DIR}/sample.protected.ll"; then
   echo "outlined function kept protected-function metadata" >&2
   exit 21

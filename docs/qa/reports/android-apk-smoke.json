@@ -6,48 +6,45 @@
   "android_debuggable": false,
   "apk_entries": [
     "AndroidManifest.xml",
-    "META-INF/MANIFEST.MF",
-    "META-INF/VMPRELEA.RSA",
-    "META-INF/VMPRELEA.SF",
     "classes.dex",
-    "lib/arm64-v8a/libvmp_platform.so",
-    "lib/arm64-v8a/libvmp_smoke_jni.so",
-    "lib/x86_64/libvmp_platform.so",
-    "lib/x86_64/libvmp_smoke_jni.so"
+    "lib/arm64-v8a/libmi_bridge.so",
+    "lib/arm64-v8a/libmi_platform.so",
+    "lib/x86_64/libmi_bridge.so",
+    "lib/x86_64/libmi_platform.so"
   ],
   "apk_forbidden_plaintext_hits": [],
   "apk_install_executed": true,
   "apk_signature_verified": true,
   "artifacts": [
     {
-      "bytes": 24416,
-      "path": "build/android-x86_64/libvmp_platform.so",
-      "sha256": "e5a8eca152285fbcd51d4cf22b0568133458b5071eb86437607dfa84a497eca9"
+      "bytes": 24224,
+      "path": "build/android-x86_64/libmi_platform.so",
+      "sha256": "12ff41572b76728dd3fd8d8e27f9d18f59e702dd52dacb11eddb8f0d05eff307"
     },
     {
-      "bytes": 391120,
-      "path": "build/android-x86_64/libvmp_smoke_jni.so",
-      "sha256": "60f6b0bf332dd76d6d56846592d5b3aba8c4358a60a85da35109731ab432705f"
+      "bytes": 389424,
+      "path": "build/android-x86_64/libmi_bridge.so",
+      "sha256": "6f98abcf313e2bc1d69888d6ae89db4755e05b6fb7cce2d9451697184e8e6c84"
     },
     {
-      "bytes": 25552,
-      "path": "build/android-arm64-v8a/libvmp_platform.so",
-      "sha256": "03a15ad9d0bb07fe754fc6e97d29962ff18c11bb0de534f955f675f7ebbb5794"
+      "bytes": 25360,
+      "path": "build/android-arm64-v8a/libmi_platform.so",
+      "sha256": "47300d7a6b428a7879dba9b385b212603f1cf8080bd13bef890f271a8bbf476b"
     },
     {
-      "bytes": 403232,
-      "path": "build/android-arm64-v8a/libvmp_smoke_jni.so",
-      "sha256": "671e17f2b1fb2ec83f9eba5215b806f83ee8863b3a1b7e25d2ce2280889272ca"
+      "bytes": 401552,
+      "path": "build/android-arm64-v8a/libmi_bridge.so",
+      "sha256": "f5ab5679bf43e08c9e37b722a7fd179effc52ada949152d273b778ee33e0259d"
     },
     {
       "bytes": 133,
       "path": "samples/protected_chain/out/protected_sample.vmp",
-      "sha256": "0670fdf948e5b5614e26f2f528399286eb50c2189a6cb0d6301bda96d6245521"
+      "sha256": "b869678b2f91121aa80be126de305525e509e91ac3964508b2c5bc605b51e778"
     },
     {
-      "bytes": 291587,
-      "path": "build/android-apk-smoke/vmp-smoke.apk",
-      "sha256": "978932f75498bdfc3057dcac31f8eaa2bbaa0e6fd530c1c7f8e322216b3625f0"
+      "bytes": 287282,
+      "path": "build/android-apk-smoke/mi-smoke.apk",
+      "sha256": "45e769de01671cb4a6fdd6c77d828d9b340714da232c834ea4e5eb5696f7ab73"
     }
   ],
   "blocking_note": null,
@@ -66,9 +63,9 @@
   "github_ref_protected": "true",
   "github_repository": "3582730951/mi_main_vmp_test",
   "github_run_attempt": "1",
-  "github_run_id": "25354417412",
-  "github_run_url": "https://github.com/3582730951/mi_main_vmp_test/actions/runs/25354417412",
-  "github_sha": "a2b40f9d9990302ddcaa098760633722aaa99e63",
+  "github_run_id": "25369803181",
+  "github_run_url": "https://github.com/3582730951/mi_main_vmp_test/actions/runs/25369803181",
+  "github_sha": "4d851acd9e9b23bc5b9b97391d62d8498198d4b2",
   "github_workflow": "platform-android",
   "hostile_evidence_claim": false,
   "hostile_trigger_executed": false,
@@ -78,6 +75,904 @@
   "jni_symbol_plaintext_hits": [],
   "logcat_result_observed": true,
   "manifest_debuggable": false,
+  "native_elf_metadata": [
+    {
+      "findings": [],
+      "observations": {
+        "elf_class": "ELF64",
+        "section_header_count": 29,
+        "section_header_entry_size": 64,
+        "section_header_offset": 22368,
+        "section_header_table_present": true,
+        "section_name_table_index": 27,
+        "standard_section_string_hits": [
+          {
+            "offset": 21834,
+            "pattern": ".text"
+          },
+          {
+            "offset": 21802,
+            "pattern": ".rodata"
+          },
+          {
+            "offset": 21845,
+            "pattern": ".data"
+          },
+          {
+            "offset": 21870,
+            "pattern": ".dynamic"
+          },
+          {
+            "offset": 21728,
+            "pattern": ".dynsym"
+          },
+          {
+            "offset": 21774,
+            "pattern": ".dynstr"
+          },
+          {
+            "offset": 21782,
+            "pattern": ".rela.dyn"
+          },
+          {
+            "offset": 21792,
+            "pattern": ".rela.plt"
+          },
+          {
+            "offset": 21797,
+            "pattern": ".plt"
+          },
+          {
+            "offset": 21879,
+            "pattern": ".got"
+          },
+          {
+            "offset": 21810,
+            "pattern": ".eh_frame"
+          },
+          {
+            "offset": 21888,
+            "pattern": ".comment"
+          },
+          {
+            "offset": 21971,
+            "pattern": ".symtab"
+          },
+          {
+            "offset": 21989,
+            "pattern": ".strtab"
+          },
+          {
+            "offset": 21979,
+            "pattern": ".shstrtab"
+          }
+        ],
+        "status": "observed"
+      },
+      "observed_findings": [
+        {
+          "category": "elf_section_header_table",
+          "evidence": {
+            "section_header_count": 29
+          },
+          "offset": 22368,
+          "pattern": "ELF section header table"
+        },
+        {
+          "category": "elf_standard_section_string",
+          "evidence": [
+            {
+              "offset": 21834,
+              "pattern": ".text"
+            },
+            {
+              "offset": 21802,
+              "pattern": ".rodata"
+            },
+            {
+              "offset": 21845,
+              "pattern": ".data"
+            },
+            {
+              "offset": 21870,
+              "pattern": ".dynamic"
+            },
+            {
+              "offset": 21728,
+              "pattern": ".dynsym"
+            },
+            {
+              "offset": 21774,
+              "pattern": ".dynstr"
+            },
+            {
+              "offset": 21782,
+              "pattern": ".rela.dyn"
+            },
+            {
+              "offset": 21792,
+              "pattern": ".rela.plt"
+            },
+            {
+              "offset": 21797,
+              "pattern": ".plt"
+            },
+            {
+              "offset": 21879,
+              "pattern": ".got"
+            },
+            {
+              "offset": 21810,
+              "pattern": ".eh_frame"
+            },
+            {
+              "offset": 21888,
+              "pattern": ".comment"
+            },
+            {
+              "offset": 21971,
+              "pattern": ".symtab"
+            },
+            {
+              "offset": 21989,
+              "pattern": ".strtab"
+            },
+            {
+              "offset": 21979,
+              "pattern": ".shstrtab"
+            }
+          ],
+          "offset": null,
+          "pattern": "standard ELF section-name string"
+        }
+      ],
+      "path": "build/android-x86_64/libmi_platform.so"
+    },
+    {
+      "findings": [],
+      "observations": {
+        "elf_class": "ELF64",
+        "section_header_count": 24,
+        "section_header_entry_size": 64,
+        "section_header_offset": 387888,
+        "section_header_table_present": true,
+        "section_name_table_index": 23,
+        "standard_section_string_hits": [
+          {
+            "offset": 387797,
+            "pattern": ".text"
+          },
+          {
+            "offset": 387765,
+            "pattern": ".rodata"
+          },
+          {
+            "offset": 387808,
+            "pattern": ".data"
+          },
+          {
+            "offset": 387862,
+            "pattern": ".bss"
+          },
+          {
+            "offset": 387833,
+            "pattern": ".dynamic"
+          },
+          {
+            "offset": 387673,
+            "pattern": ".dynsym"
+          },
+          {
+            "offset": 387719,
+            "pattern": ".dynstr"
+          },
+          {
+            "offset": 387727,
+            "pattern": ".rela.dyn"
+          },
+          {
+            "offset": 387737,
+            "pattern": ".rela.plt"
+          },
+          {
+            "offset": 387742,
+            "pattern": ".plt"
+          },
+          {
+            "offset": 387842,
+            "pattern": ".got"
+          },
+          {
+            "offset": 94956,
+            "pattern": ".eh_frame"
+          },
+          {
+            "offset": 387867,
+            "pattern": ".comment"
+          },
+          {
+            "offset": 387876,
+            "pattern": ".shstrtab"
+          }
+        ],
+        "status": "observed"
+      },
+      "observed_findings": [
+        {
+          "category": "elf_section_header_table",
+          "evidence": {
+            "section_header_count": 24
+          },
+          "offset": 387888,
+          "pattern": "ELF section header table"
+        },
+        {
+          "category": "elf_standard_section_string",
+          "evidence": [
+            {
+              "offset": 387797,
+              "pattern": ".text"
+            },
+            {
+              "offset": 387765,
+              "pattern": ".rodata"
+            },
+            {
+              "offset": 387808,
+              "pattern": ".data"
+            },
+            {
+              "offset": 387862,
+              "pattern": ".bss"
+            },
+            {
+              "offset": 387833,
+              "pattern": ".dynamic"
+            },
+            {
+              "offset": 387673,
+              "pattern": ".dynsym"
+            },
+            {
+              "offset": 387719,
+              "pattern": ".dynstr"
+            },
+            {
+              "offset": 387727,
+              "pattern": ".rela.dyn"
+            },
+            {
+              "offset": 387737,
+              "pattern": ".rela.plt"
+            },
+            {
+              "offset": 387742,
+              "pattern": ".plt"
+            },
+            {
+              "offset": 387842,
+              "pattern": ".got"
+            },
+            {
+              "offset": 94956,
+              "pattern": ".eh_frame"
+            },
+            {
+              "offset": 387867,
+              "pattern": ".comment"
+            },
+            {
+              "offset": 387876,
+              "pattern": ".shstrtab"
+            }
+          ],
+          "offset": null,
+          "pattern": "standard ELF section-name string"
+        }
+      ],
+      "path": "build/android-x86_64/libmi_bridge.so"
+    },
+    {
+      "findings": [],
+      "observations": {
+        "elf_class": "ELF64",
+        "section_header_count": 29,
+        "section_header_entry_size": 64,
+        "section_header_offset": 23504,
+        "section_header_table_present": true,
+        "section_name_table_index": 27,
+        "standard_section_string_hits": [
+          {
+            "offset": 22818,
+            "pattern": ".text"
+          },
+          {
+            "offset": 22786,
+            "pattern": ".rodata"
+          },
+          {
+            "offset": 22829,
+            "pattern": ".data"
+          },
+          {
+            "offset": 22854,
+            "pattern": ".dynamic"
+          },
+          {
+            "offset": 22712,
+            "pattern": ".dynsym"
+          },
+          {
+            "offset": 22758,
+            "pattern": ".dynstr"
+          },
+          {
+            "offset": 22766,
+            "pattern": ".rela.dyn"
+          },
+          {
+            "offset": 22776,
+            "pattern": ".rela.plt"
+          },
+          {
+            "offset": 22781,
+            "pattern": ".plt"
+          },
+          {
+            "offset": 22863,
+            "pattern": ".got"
+          },
+          {
+            "offset": 22794,
+            "pattern": ".eh_frame"
+          },
+          {
+            "offset": 22872,
+            "pattern": ".comment"
+          },
+          {
+            "offset": 22955,
+            "pattern": ".symtab"
+          },
+          {
+            "offset": 22973,
+            "pattern": ".strtab"
+          },
+          {
+            "offset": 22963,
+            "pattern": ".shstrtab"
+          }
+        ],
+        "status": "observed"
+      },
+      "observed_findings": [
+        {
+          "category": "elf_section_header_table",
+          "evidence": {
+            "section_header_count": 29
+          },
+          "offset": 23504,
+          "pattern": "ELF section header table"
+        },
+        {
+          "category": "elf_standard_section_string",
+          "evidence": [
+            {
+              "offset": 22818,
+              "pattern": ".text"
+            },
+            {
+              "offset": 22786,
+              "pattern": ".rodata"
+            },
+            {
+              "offset": 22829,
+              "pattern": ".data"
+            },
+            {
+              "offset": 22854,
+              "pattern": ".dynamic"
+            },
+            {
+              "offset": 22712,
+              "pattern": ".dynsym"
+            },
+            {
+              "offset": 22758,
+              "pattern": ".dynstr"
+            },
+            {
+              "offset": 22766,
+              "pattern": ".rela.dyn"
+            },
+            {
+              "offset": 22776,
+              "pattern": ".rela.plt"
+            },
+            {
+              "offset": 22781,
+              "pattern": ".plt"
+            },
+            {
+              "offset": 22863,
+              "pattern": ".got"
+            },
+            {
+              "offset": 22794,
+              "pattern": ".eh_frame"
+            },
+            {
+              "offset": 22872,
+              "pattern": ".comment"
+            },
+            {
+              "offset": 22955,
+              "pattern": ".symtab"
+            },
+            {
+              "offset": 22973,
+              "pattern": ".strtab"
+            },
+            {
+              "offset": 22963,
+              "pattern": ".shstrtab"
+            }
+          ],
+          "offset": null,
+          "pattern": "standard ELF section-name string"
+        }
+      ],
+      "path": "build/android-arm64-v8a/libmi_platform.so"
+    },
+    {
+      "findings": [],
+      "observations": {
+        "elf_class": "ELF64",
+        "section_header_count": 25,
+        "section_header_entry_size": 64,
+        "section_header_offset": 399952,
+        "section_header_table_present": true,
+        "section_name_table_index": 24,
+        "standard_section_string_hits": [
+          {
+            "offset": 399845,
+            "pattern": ".text"
+          },
+          {
+            "offset": 399813,
+            "pattern": ".rodata"
+          },
+          {
+            "offset": 399856,
+            "pattern": ".data"
+          },
+          {
+            "offset": 399922,
+            "pattern": ".bss"
+          },
+          {
+            "offset": 399893,
+            "pattern": ".dynamic"
+          },
+          {
+            "offset": 399721,
+            "pattern": ".dynsym"
+          },
+          {
+            "offset": 399767,
+            "pattern": ".dynstr"
+          },
+          {
+            "offset": 399775,
+            "pattern": ".rela.dyn"
+          },
+          {
+            "offset": 399785,
+            "pattern": ".rela.plt"
+          },
+          {
+            "offset": 399790,
+            "pattern": ".plt"
+          },
+          {
+            "offset": 399902,
+            "pattern": ".got"
+          },
+          {
+            "offset": 95849,
+            "pattern": ".eh_frame"
+          },
+          {
+            "offset": 399927,
+            "pattern": ".comment"
+          },
+          {
+            "offset": 399936,
+            "pattern": ".shstrtab"
+          }
+        ],
+        "status": "observed"
+      },
+      "observed_findings": [
+        {
+          "category": "elf_section_header_table",
+          "evidence": {
+            "section_header_count": 25
+          },
+          "offset": 399952,
+          "pattern": "ELF section header table"
+        },
+        {
+          "category": "elf_standard_section_string",
+          "evidence": [
+            {
+              "offset": 399845,
+              "pattern": ".text"
+            },
+            {
+              "offset": 399813,
+              "pattern": ".rodata"
+            },
+            {
+              "offset": 399856,
+              "pattern": ".data"
+            },
+            {
+              "offset": 399922,
+              "pattern": ".bss"
+            },
+            {
+              "offset": 399893,
+              "pattern": ".dynamic"
+            },
+            {
+              "offset": 399721,
+              "pattern": ".dynsym"
+            },
+            {
+              "offset": 399767,
+              "pattern": ".dynstr"
+            },
+            {
+              "offset": 399775,
+              "pattern": ".rela.dyn"
+            },
+            {
+              "offset": 399785,
+              "pattern": ".rela.plt"
+            },
+            {
+              "offset": 399790,
+              "pattern": ".plt"
+            },
+            {
+              "offset": 399902,
+              "pattern": ".got"
+            },
+            {
+              "offset": 95849,
+              "pattern": ".eh_frame"
+            },
+            {
+              "offset": 399927,
+              "pattern": ".comment"
+            },
+            {
+              "offset": 399936,
+              "pattern": ".shstrtab"
+            }
+          ],
+          "offset": null,
+          "pattern": "standard ELF section-name string"
+        }
+      ],
+      "path": "build/android-arm64-v8a/libmi_bridge.so"
+    }
+  ],
+  "native_elf_metadata_findings": [],
+  "native_elf_metadata_gate": "report_only_runtime_preserving",
+  "native_elf_metadata_observed_findings": [
+    {
+      "category": "elf_section_header_table",
+      "evidence": {
+        "section_header_count": 29
+      },
+      "offset": 22368,
+      "path": "build/android-x86_64/libmi_platform.so",
+      "pattern": "ELF section header table"
+    },
+    {
+      "category": "elf_standard_section_string",
+      "evidence": [
+        {
+          "offset": 21834,
+          "pattern": ".text"
+        },
+        {
+          "offset": 21802,
+          "pattern": ".rodata"
+        },
+        {
+          "offset": 21845,
+          "pattern": ".data"
+        },
+        {
+          "offset": 21870,
+          "pattern": ".dynamic"
+        },
+        {
+          "offset": 21728,
+          "pattern": ".dynsym"
+        },
+        {
+          "offset": 21774,
+          "pattern": ".dynstr"
+        },
+        {
+          "offset": 21782,
+          "pattern": ".rela.dyn"
+        },
+        {
+          "offset": 21792,
+          "pattern": ".rela.plt"
+        },
+        {
+          "offset": 21797,
+          "pattern": ".plt"
+        },
+        {
+          "offset": 21879,
+          "pattern": ".got"
+        },
+        {
+          "offset": 21810,
+          "pattern": ".eh_frame"
+        },
+        {
+          "offset": 21888,
+          "pattern": ".comment"
+        },
+        {
+          "offset": 21971,
+          "pattern": ".symtab"
+        },
+        {
+          "offset": 21989,
+          "pattern": ".strtab"
+        },
+        {
+          "offset": 21979,
+          "pattern": ".shstrtab"
+        }
+      ],
+      "offset": null,
+      "path": "build/android-x86_64/libmi_platform.so",
+      "pattern": "standard ELF section-name string"
+    },
+    {
+      "category": "elf_section_header_table",
+      "evidence": {
+        "section_header_count": 24
+      },
+      "offset": 387888,
+      "path": "build/android-x86_64/libmi_bridge.so",
+      "pattern": "ELF section header table"
+    },
+    {
+      "category": "elf_standard_section_string",
+      "evidence": [
+        {
+          "offset": 387797,
+          "pattern": ".text"
+        },
+        {
+          "offset": 387765,
+          "pattern": ".rodata"
+        },
+        {
+          "offset": 387808,
+          "pattern": ".data"
+        },
+        {
+          "offset": 387862,
+          "pattern": ".bss"
+        },
+        {
+          "offset": 387833,
+          "pattern": ".dynamic"
+        },
+        {
+          "offset": 387673,
+          "pattern": ".dynsym"
+        },
+        {
+          "offset": 387719,
+          "pattern": ".dynstr"
+        },
+        {
+          "offset": 387727,
+          "pattern": ".rela.dyn"
+        },
+        {
+          "offset": 387737,
+          "pattern": ".rela.plt"
+        },
+        {
+          "offset": 387742,
+          "pattern": ".plt"
+        },
+        {
+          "offset": 387842,
+          "pattern": ".got"
+        },
+        {
+          "offset": 94956,
+          "pattern": ".eh_frame"
+        },
+        {
+          "offset": 387867,
+          "pattern": ".comment"
+        },
+        {
+          "offset": 387876,
+          "pattern": ".shstrtab"
+        }
+      ],
+      "offset": null,
+      "path": "build/android-x86_64/libmi_bridge.so",
+      "pattern": "standard ELF section-name string"
+    },
+    {
+      "category": "elf_section_header_table",
+      "evidence": {
+        "section_header_count": 29
+      },
+      "offset": 23504,
+      "path": "build/android-arm64-v8a/libmi_platform.so",
+      "pattern": "ELF section header table"
+    },
+    {
+      "category": "elf_standard_section_string",
+      "evidence": [
+        {
+          "offset": 22818,
+          "pattern": ".text"
+        },
+        {
+          "offset": 22786,
+          "pattern": ".rodata"
+        },
+        {
+          "offset": 22829,
+          "pattern": ".data"
+        },
+        {
+          "offset": 22854,
+          "pattern": ".dynamic"
+        },
+        {
+          "offset": 22712,
+          "pattern": ".dynsym"
+        },
+        {
+          "offset": 22758,
+          "pattern": ".dynstr"
+        },
+        {
+          "offset": 22766,
+          "pattern": ".rela.dyn"
+        },
+        {
+          "offset": 22776,
+          "pattern": ".rela.plt"
+        },
+        {
+          "offset": 22781,
+          "pattern": ".plt"
+        },
+        {
+          "offset": 22863,
+          "pattern": ".got"
+        },
+        {
+          "offset": 22794,
+          "pattern": ".eh_frame"
+        },
+        {
+          "offset": 22872,
+          "pattern": ".comment"
+        },
+        {
+          "offset": 22955,
+          "pattern": ".symtab"
+        },
+        {
+          "offset": 22973,
+          "pattern": ".strtab"
+        },
+        {
+          "offset": 22963,
+          "pattern": ".shstrtab"
+        }
+      ],
+      "offset": null,
+      "path": "build/android-arm64-v8a/libmi_platform.so",
+      "pattern": "standard ELF section-name string"
+    },
+    {
+      "category": "elf_section_header_table",
+      "evidence": {
+        "section_header_count": 25
+      },
+      "offset": 399952,
+      "path": "build/android-arm64-v8a/libmi_bridge.so",
+      "pattern": "ELF section header table"
+    },
+    {
+      "category": "elf_standard_section_string",
+      "evidence": [
+        {
+          "offset": 399845,
+          "pattern": ".text"
+        },
+        {
+          "offset": 399813,
+          "pattern": ".rodata"
+        },
+        {
+          "offset": 399856,
+          "pattern": ".data"
+        },
+        {
+          "offset": 399922,
+          "pattern": ".bss"
+        },
+        {
+          "offset": 399893,
+          "pattern": ".dynamic"
+        },
+        {
+          "offset": 399721,
+          "pattern": ".dynsym"
+        },
+        {
+          "offset": 399767,
+          "pattern": ".dynstr"
+        },
+        {
+          "offset": 399775,
+          "pattern": ".rela.dyn"
+        },
+        {
+          "offset": 399785,
+          "pattern": ".rela.plt"
+        },
+        {
+          "offset": 399790,
+          "pattern": ".plt"
+        },
+        {
+          "offset": 399902,
+          "pattern": ".got"
+        },
+        {
+          "offset": 95849,
+          "pattern": ".eh_frame"
+        },
+        {
+          "offset": 399927,
+          "pattern": ".comment"
+        },
+        {
+          "offset": 399936,
+          "pattern": ".shstrtab"
+        }
+      ],
+      "offset": null,
+      "path": "build/android-arm64-v8a/libmi_bridge.so",
+      "pattern": "standard ELF section-name string"
+    }
+  ],
   "protected_payload_embedded_in_jni": true,
   "protected_sample_asset_packaged": false,
   "protected_sample_executed": true,
@@ -86,13 +981,13 @@
   "release_signing_secret_used": true,
   "result_output": [
     "--------- beginning of main",
-    "05-05 02:22:26.788  2222  2222 I VMP_SMOKE: sum=42;platform=3;protected_cases=4;"
+    "05-05 10:00:21.864  2251  2251 I MI_SMOKE: sum=42;platform=3;protected_cases=4;"
   ],
   "result_read_exit_code": 0,
-  "runner_name": "GitHub Actions 1000004746",
+  "runner_name": "GitHub Actions 1000004804",
   "runner_os": "Linux",
   "schema": "vmp.platform.android_apk_smoke.v1",
   "scope_note": "This is real emulator APK install and Java/JNI execution evidence from a non-debuggable APK. The APK packages x86_64 and arm64-v8a protected native libraries and runs the generated protected_sample.vmp embedded inside the JNI .so through the VM runtime. It is not hostile-environment trigger evidence.",
-  "signing_key_scope": "github_secret_keystore",
+  "signing_key_scope": "github_secret_private_key_neutral_certificate",
   "status": "pass"
 }

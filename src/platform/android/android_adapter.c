@@ -7,12 +7,12 @@
 static uint32_t g_android_init_state;
 
 __attribute__((constructor)) static void mi_android_ctor(void) {
-  g_android_init_state = 0x414e4452u;
+  g_android_init_state = 0xa7c35d19u;
 }
 
 int vmp_platform_init(void) {
   if (g_android_init_state == 0u) {
-    g_android_init_state = 0x414e4452u;
+    g_android_init_state = 0xa7c35d19u;
   }
   return 0;
 }
@@ -27,7 +27,7 @@ VmpPlatformProbe vmp_platform_probe(void) {
   return probe;
 }
 
-#ifdef __ANDROID__
+#if defined(__ANDROID__) && !defined(VMP_PLATFORM_ANDROID_DISABLE_JNI_ONLOAD)
 JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
   (void)vm;
   (void)reserved;

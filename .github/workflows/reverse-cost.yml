@@ -16,12 +16,8 @@ jobs:
 
       - name: Install analysis toolchain
         run: |
-          sudo apt-get update
-          sudo apt-get install -y binutils llvm-14-dev llvm-14-tools clang-14 g++-mingw-w64-x86-64 binutils-mingw-w64-x86-64
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          timeout 120s python3 -m pip install --user --disable-pip-version-check --only-binary=:all: lief || true
-          timeout 180s python3 -m pip install --user --disable-pip-version-check flare-capa || true
-          timeout 60s git clone --depth 1 https://github.com/mandiant/capa-rules.git /tmp/capa-rules || true
+          bash scripts/audit/install_reverse_tooling.sh --ci
           echo "CAPA_RULES=/tmp/capa-rules" >> "$GITHUB_ENV"
 
       - name: Build protection and IR evidence
@@ -33,6 +29,12 @@ jobs:
           bash tests/integration/run_release_protected_binary.sh
           bash tests/platform/windows_release_cross_build.sh
           python3 scripts/audit/surface_minimization_audit.py --root .
+
+      - name: Generate objective completion sidecar
+        if: always()
+        run: |
+          python3 scripts/audit/platform_string_residuals.py --root . || true
+          python3 scripts/audit/objective_completion_audit.py --root . || true
 
       - name: Generate automated reverse-cost assessment
         run: |
@@ -46,6 +48,8 @@ jobs:
           name: reverse-cost-evidence
           path: |
             docs/qa/reports/reverse-cost-assessment.json
+            docs/qa/reports/objective-completion-audit.json
+            docs/qa/reports/platform-string-residuals.json
             docs/qa/reports/protected-callgraph.json
             docs/qa/reports/surface-minimization.json
             docs/qa/reports/windows-protected-cross-build.json

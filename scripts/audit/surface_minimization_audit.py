@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import importlib.util
 import json
 import os
@@ -19,6 +20,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from anti_analysis import ArtifactSurfacePolicy
+from anti_analysis.artifact_surface import SurfaceCategory
 
 
 DEFAULT_ARTIFACTS = (
@@ -59,6 +61,11 @@ STANDARD_ELF_SECTION_NAMES = (
     b".shstrtab",
 )
 
+ALLOWED_PE_IMPORTS = {
+    "kernel32.dll": {"exitprocess", "getstdhandle", "readfile", "writefile"},
+}
+ALLOWED_PE_IMPORT_SURFACE_PATTERNS = {"ExitProcess", "KERNEL32.dll"}
+
 
 def run_tool(args: list[str], cwd: Path) -> tuple[int, str]:
     try:
@@ -77,6 +84,99 @@ def run_tool(args: list[str], cwd: Path) -> tuple[int, str]:
 
 def has_tool(name: str) -> bool:
     return shutil.which(name) is not None
+
+
+def printable_strings(data: bytes, min_length: int = 4) -> list[bytes]:
+    return [data[start:end] for start, end in printable_string_ranges(data, min_length)]
+
+
+def printable_string_ranges(data: bytes, min_length: int = 4) -> list[tuple[int, int]]:
+    ranges: list[tuple[int, int]] = []
+    current = bytearray()
+    start = 0
+    for offset, byte in enumerate(data):
+        if 0x20 <= byte <= 0x7E:
+            if not current:
+                start = offset
+            current.append(byte)
+            continue
+        if len(current) >= min_length:
+            ranges.append((start, offset))
+        current.clear()
+    if len(current) >= min_length:
+        ranges.append((start, len(data)))
+    return ranges
+
+
+def printable_string_observations(data: bytes) -> dict[str, Any]:
+    found = printable_strings(data)
+    digest = hashlib.sha256(b"\0".join(found)).hexdigest() if found else None
+    return {
+        "count": len(found),
+        "max_length": max((len(item) for item in found), default=0),
+        "sha256": digest,
+        "raw_values_recorded": False,
+        "policy": "forbidden patterns fail the gate; residual printable byte runs are tracked without writing raw strings",
+    }
+
+
+def pe_raw_section_ranges_from_data(data: bytes) -> list[dict[str, Any]]:
+    if len(data) < 0x40 or not data.startswith(b"MZ"):
+        return []
+    try:
+        pe_offset = struct.unpack_from("<I", data, 0x3C)[0]
+        if pe_offset + 24 > len(data) or data[pe_offset : pe_offset + 4] != b"PE\0\0":
+            return []
+        section_count = struct.unpack_from("<H", data, pe_offset + 6)[0]
+        optional_header_size = struct.unpack_from("<H", data, pe_offset + 20)[0]
+        section_table = pe_offset + 24 + optional_header_size
+        if section_table + section_count * 40 > len(data):
+            return []
+    except struct.error:
+        return []
+
+    ranges: list[dict[str, Any]] = []
+    for index in range(section_count):
+        offset = section_table + index * 40
+        raw_size = struct.unpack_from("<I", data, offset + 16)[0]
+        raw_pointer = struct.unpack_from("<I", data, offset + 20)[0]
+        characteristics = struct.unpack_from("<I", data, offset + 36)[0]
+        if raw_size == 0:
+            continue
+        ranges.append(
+            {
+                "index": index,
+                "name_hex": data[offset : offset + 8].hex(),
+                "raw_start": raw_pointer,
+                "raw_end": raw_pointer + raw_size,
+                "executable": bool(characteristics & 0x20000000),
+            }
+        )
+    return ranges
+
+
+def pe_printable_string_section_observations(data: bytes) -> dict[str, Any]:
+    ranges = pe_raw_section_ranges_from_data(data)
+    if not ranges:
+        return {}
+    executable = 0
+    non_executable = 0
+    unknown = 0
+    for start, _end in printable_string_ranges(data):
+        owner = next((item for item in ranges if item["raw_start"] <= start < item["raw_end"]), None)
+        if owner is None:
+            unknown += 1
+        elif owner["executable"]:
+            executable += 1
+        else:
+            non_executable += 1
+    return {
+        "total": executable + non_executable + unknown,
+        "executable_section_strings": executable,
+        "non_executable_section_strings": non_executable,
+        "unknown_section_strings": unknown,
+        "raw_values_recorded": False,
+    }
 
 
 def _as_sequence(value: Any) -> list[Any]:
@@ -235,7 +335,10 @@ def pe_observations(root: Path, artifact: Path) -> dict[str, Any]:
         return {"tool": "objdump", "status": "unavailable", "detail": output.strip()[:200]}
     import_dlls = []
     imported_names = []
+    imports = []
+    current_import_dll = ""
     export_directory_present = False
+    import_directory_present = False
     tls_directory_present = False
     in_import_table = False
     for line in output.splitlines():
@@ -248,24 +351,93 @@ def pe_observations(root: Path, artifact: Path) -> dict[str, Any]:
         if stripped.startswith("Entry 0 "):
             parts = stripped.split()
             export_directory_present = len(parts) >= 4 and parts[3] != "00000000"
+        if stripped.startswith("Entry 1 "):
+            parts = stripped.split()
+            import_directory_present = len(parts) >= 4 and parts[3] != "00000000"
         if stripped.startswith("Entry 9 "):
             parts = stripped.split()
             tls_directory_present = len(parts) >= 4 and parts[3] != "00000000"
         if stripped.startswith("DLL Name:"):
-            import_dlls.append(stripped.removeprefix("DLL Name:").strip())
+            current_import_dll = stripped.removeprefix("DLL Name:").strip()
+            import_dlls.append(current_import_dll)
         if in_import_table:
             parts = stripped.split()
             if len(parts) == 3 and re.fullmatch(r"[0-9a-fA-F]+", parts[0]) and parts[1].isdigit():
                 imported_names.append(parts[2])
+                imports.append({"dll": current_import_dll, "name": parts[2]})
     return {
         "tool": "objdump",
         "status": "observed",
         "export_directory_present": export_directory_present,
+        "import_directory_present": import_directory_present,
         "tls_directory_present": tls_directory_present,
         "import_dlls": sorted(set(import_dlls)),
         "import_count": len(imported_names),
+        "imports": imports[:40],
         "note": "PE headers and CRT TLS/import directories are mandatory container/runtime observations; avoidable product markers are reported as findings.",
     }
+
+
+def pe_dynamic_surface_findings(observations: dict[str, Any]) -> list[dict[str, Any]]:
+    if observations.get("status") != "observed":
+        return []
+    findings: list[dict[str, Any]] = []
+    if observations.get("export_directory_present"):
+        findings.append(
+            {
+                "category": "pe_export_directory",
+                "pattern": "PE export directory",
+                "offset": None,
+                "evidence": {"export_directory_present": True},
+            }
+        )
+    if observations.get("import_directory_present") and int(observations.get("import_count", 0)) == 0:
+        findings.append(
+            {
+                "category": "pe_empty_import_directory",
+                "pattern": "empty PE import directory",
+                "offset": None,
+                "evidence": {"import_directory_present": True, "import_count": 0},
+            }
+        )
+    if observations.get("tls_directory_present"):
+        findings.append(
+            {
+                "category": "pe_tls_directory",
+                "pattern": "PE TLS directory",
+                "offset": None,
+                "evidence": {"tls_directory_present": True},
+            }
+        )
+    imports = observations.get("imports", [])
+    if not isinstance(imports, list):
+        imports = []
+    disallowed = []
+    for item in imports:
+        if not isinstance(item, dict):
+            continue
+        dll = str(item.get("dll", "")).lower()
+        name = str(item.get("name", "")).lower()
+        if name not in ALLOWED_PE_IMPORTS.get(dll, set()):
+            disallowed.append(item)
+    if disallowed:
+        findings.append(
+            {
+                "category": "pe_disallowed_import",
+                "pattern": "PE import outside fixed runtime/console-demo allowlist",
+                "offset": None,
+                "evidence": disallowed[:20],
+            }
+        )
+    return findings
+
+
+def allowed_pe_import_surface_marker(finding: Any, pe_dynamic: dict[str, Any]) -> bool:
+    if getattr(finding, "category", None) != SurfaceCategory.IMPORT_RESOLVER_NAME:
+        return False
+    if getattr(finding, "pattern", "") not in ALLOWED_PE_IMPORT_SURFACE_PATTERNS:
+        return False
+    return pe_dynamic_surface_findings(pe_dynamic) == []
 
 
 def printable_pe_name(raw: bytes) -> str:
@@ -298,9 +470,15 @@ def pe_metadata_observations(artifact: Path) -> dict[str, Any]:
         printable_sections = []
         standard_sections = []
         section_name_hex = []
+        nonprintable_high_bit_sections = 0
+        zero_padded_section_names = 0
         for index in range(section_count):
             raw_name = data[section_table + index * 40 : section_table + index * 40 + 8]
             section_name_hex.append(raw_name.hex())
+            if raw_name and all(byte >= 0x80 for byte in raw_name):
+                nonprintable_high_bit_sections += 1
+            if raw_name[4:] == b"\0\0\0\0":
+                zero_padded_section_names += 1
             text = printable_pe_name(raw_name)
             if text:
                 printable_sections.append(text)
@@ -317,6 +495,9 @@ def pe_metadata_observations(artifact: Path) -> dict[str, Any]:
         "status": "observed",
         "section_count": section_count,
         "section_name_hex": section_name_hex,
+        "section_name_distinct_count": len(set(section_name_hex)),
+        "nonprintable_high_bit_section_names": nonprintable_high_bit_sections,
+        "zero_padded_section_names": zero_padded_section_names,
         "printable_section_names": printable_sections,
         "standard_section_names": standard_sections,
         "coff_symbol_table_present": bool(symbol_table or symbol_count),
@@ -384,9 +565,35 @@ def elf_observations(root: Path, artifact: Path) -> dict[str, Any]:
         "status": "observed",
         "import_count": len(imports),
         "export_count": len(exports),
+        "import_names": sorted(imports)[:20],
         "export_names": sorted(exports)[:20],
         "note": "ELF dynamic linker metadata is recorded separately from avoidable protected-surface markers.",
     }
+
+
+def elf_dynamic_surface_findings(observations: dict[str, Any]) -> list[dict[str, Any]]:
+    if observations.get("status") != "observed":
+        return []
+    findings: list[dict[str, Any]] = []
+    if int(observations.get("import_count", 0)):
+        findings.append(
+            {
+                "category": "elf_dynamic_import",
+                "pattern": "ELF dynamic import",
+                "offset": None,
+                "evidence": observations.get("import_names", []),
+            }
+        )
+    if int(observations.get("export_count", 0)):
+        findings.append(
+            {
+                "category": "elf_dynamic_export",
+                "pattern": "ELF dynamic export",
+                "offset": None,
+                "evidence": observations.get("export_names", []),
+            }
+        )
+    return findings
 
 
 def elf_metadata_observations(artifact: Path) -> dict[str, Any]:
@@ -471,16 +678,23 @@ def scan(root: Path, artifacts: list[str]) -> dict[str, Any]:
             missing.append(relative)
             continue
         result = policy.scan_file(path)
+        artifact_bytes = path.read_bytes()
         pe_metadata = pe_metadata_observations(path)
         elf_metadata = elf_metadata_observations(path)
+        pe_dynamic = pe_observations(root, path)
+        elf_dynamic = elf_observations(root, path)
+        platform_findings = pe_dynamic_surface_findings(pe_dynamic) + elf_dynamic_surface_findings(elf_dynamic)
         metadata_findings = pe_metadata_findings(pe_metadata) + elf_metadata_findings(elf_metadata)
-        total_findings += len(result.findings) + len(metadata_findings)
+        surface_findings = [
+            finding for finding in result.findings if not allowed_pe_import_surface_marker(finding, pe_dynamic)
+        ]
+        total_findings += len(surface_findings) + len(metadata_findings) + len(platform_findings)
         scanned.append(
             {
                 "artifact": relative,
                 "container": result.container,
                 "mandatory_features": list(result.mandatory_features),
-                "passed": result.passed and not metadata_findings,
+                "passed": not surface_findings and not metadata_findings and not platform_findings,
                 "findings": [
                     {
                         "category": finding.category.value,
@@ -488,12 +702,15 @@ def scan(root: Path, artifacts: list[str]) -> dict[str, Any]:
                         "offset": finding.offset,
                         "evidence": finding.evidence,
                     }
-                    for finding in result.findings
+                    for finding in surface_findings
                 ],
                 "metadata_findings": metadata_findings,
-                "pe_observations": pe_observations(root, path),
+                "platform_findings": platform_findings,
+                "printable_string_observations": printable_string_observations(artifact_bytes),
+                "pe_printable_string_section_observations": pe_printable_string_section_observations(artifact_bytes),
+                "pe_observations": pe_dynamic,
                 "pe_metadata_observations": pe_metadata,
-                "elf_observations": elf_observations(root, path),
+                "elf_observations": elf_dynamic,
                 "elf_metadata_observations": elf_metadata,
                 "external_tool_observations": external_tool_observations(root, path),
             }
@@ -509,14 +726,27 @@ def scan(root: Path, artifacts: list[str]) -> dict[str, Any]:
             "Mandatory executable-container signatures are observed, not treated as removable. "
             "This gate fails on avoidable product, VM, OLLVM, protected plaintext, explicit import-resolver markers, "
             "printable PE section names, COFF symbol tables, standard PE section-name string residue, "
+            "unexpected PE imports, PE export/TLS directories, ELF dynamic imports/exports, "
             "ELF section headers, and standard ELF section-name string residue."
         ),
         "syscall_policy": {
             "status": "not_implemented_for_evasion",
             "note": (
-                "The project does not add generic direct-syscall bypass stubs. Platform system access remains inside "
-                "approved adapters or fixed runtime APIs under docs/SECURITY_POLICY.md."
+                "The project does not add generic direct-syscall bypass stubs. Platform adapters prefer "
+                "self-contained code, and platform system access remains inside approved adapters or fixed "
+                "runtime APIs under docs/SECURITY_POLICY.md."
             ),
+            "allowed_direct_syscall_scope": "fixed_linux_x86_64_exit_for_crt_free_release_runner_only",
+            "generic_syscall_resolver_allowed": False,
+            "windows_release_io_policy": "minimal_fixed_kernel32_console_api_for_visible_demo",
+            "windows_direct_syscalls_enabled": False,
+            "windows_syscall_only_release_gate": "not_enabled_policy_boundary",
+            "windows_console_api_floor": ["ExitProcess", "GetStdHandle", "ReadFile", "WriteFile"],
+            "api_call_minimization": {
+                "crt_linkage_removed": True,
+                "stdout_stdin_handles_cached": True,
+                "writefile_calls_batched": True,
+            },
         },
     }
 

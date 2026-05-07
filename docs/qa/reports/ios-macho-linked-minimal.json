@@ -1,0 +1,116 @@
+{
+  "gate": "report_only_runtime_preserving",
+  "generated_at_utc": "2026-05-05T12:41:50.992323Z",
+  "missing_artifacts": [],
+  "observed_surface_findings": 0,
+  "policy_note": "Mach-O load commands, segment names, symbol tables, and code signatures are observed for iOS artifact QA. The default gate is report-only because mutating these fields can break linking, loading, or Apple code signing; use --strict only for controlled experiments.",
+  "scanned_artifacts": [
+    {
+      "artifact": "build/ios-logic-local/ios_min_exec",
+      "binaries": [
+        {
+          "class": "Mach-O 64-bit",
+          "code_signature": null,
+          "cpu_type": 16777228,
+          "diagnostics": [],
+          "dylibs": [],
+          "dysymtab": {
+            "iextdefsym": 0,
+            "ilocalsym": 0,
+            "iundefsym": 0,
+            "nextdefsym": 0,
+            "nlocalsym": 0,
+            "nundefsym": 0
+          },
+          "encryption_info": null,
+          "endian": "little",
+          "file_offset": 0,
+          "filetype": "MH_EXECUTE",
+          "flags": 2097285,
+          "load_command_count": 10,
+          "load_commands": [
+            "LC_SEGMENT_64",
+            "LC_SEGMENT_64",
+            "LC_SEGMENT_64",
+            "LC_DYLD_INFO_ONLY",
+            "LC_SYMTAB",
+            "LC_DYSYMTAB",
+            "LC_LOAD_DYLINKER",
+            "LC_UUID",
+            "LC_BUILD_VERSION",
+            "LC_MAIN"
+          ],
+          "magic": "cffaedfe",
+          "path": "build/ios-logic-local/ios_min_exec",
+          "section_names": [
+            "__T,_x"
+          ],
+          "segment_names": [
+            "__L",
+            "__P",
+            "__T"
+          ],
+          "sizeof_load_commands": 560,
+          "standard_name_hits": [],
+          "status": "observed",
+          "symtab": {
+            "nsyms": 0,
+            "stroff": 0,
+            "strsize": 0,
+            "symoff": 0
+          }
+        }
+      ],
+      "binary_count": 1,
+      "container": "macho",
+      "diagnostics": [],
+      "external_tool_observations": {
+        "lief": {
+          "entrypoint": 624,
+          "format": "FORMATS.MACHO",
+          "libraries": [],
+          "sections_sample": [
+            "_x"
+          ],
+          "status": "observed",
+          "symbols_sample": [],
+          "tool": "lief"
+        },
+        "llvm_objdump": {
+          "commands_sample": [
+            "LC_BUILD_VERSION",
+            "LC_DYLD_INFO_ONLY",
+            "LC_DYSYMTAB",
+            "LC_LOAD_DYLINKER",
+            "LC_MAIN",
+            "LC_SEGMENT_64",
+            "LC_SYMTAB",
+            "LC_UUID"
+          ],
+          "load_command_count": 10,
+          "status": "observed",
+          "tool": "llvm-objdump-14"
+        },
+        "otool": {
+          "install_hint": "available on macOS runners",
+          "status": "unavailable",
+          "tool": "otool"
+        }
+      },
+      "metadata_observed_findings": [],
+      "surface_observed_findings": []
+    }
+  ],
+  "schema": "vmp.qa.ios_macho_metadata.v1",
+  "status": "pass",
+  "strict_surface_findings": 0,
+  "tooling": {
+    "optional_tools": [
+      "lief",
+      "otool",
+      "llvm-objdump"
+    ],
+    "primary_parser": "built-in Mach-O/fat/ar parser"
+  },
+  "unsupported_artifacts": []
+}

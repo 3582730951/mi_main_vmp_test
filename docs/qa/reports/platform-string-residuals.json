@@ -1,0 +1,333 @@
+{
+  "accepted_payload_policy": {
+    "contract_blockers": [
+      {
+        "category": "apk_signature_block",
+        "constraint": "apk_signing_block_metadata",
+        "count": 5,
+        "note": "The APK signing block is part of the signed container, not protected program plaintext.",
+        "platform_contract": "Android installable APK signing container",
+        "strict_zero_string_compatible": false
+      },
+      {
+        "category": "zip_central_directory",
+        "constraint": "zip_central_directory_metadata",
+        "count": 4,
+        "note": "Installable APKs retain ZIP directory metadata for package entries.",
+        "platform_contract": "APK-as-ZIP central directory",
+        "strict_zero_string_compatible": false
+      },
+      {
+        "category": "zip_entry_name",
+        "constraint": "zip_entry_name_metadata",
+        "count": 3,
+        "note": "Android package loading requires named entries such as the manifest and native libraries.",
+        "platform_contract": "APK entry lookup names",
+        "strict_zero_string_compatible": false
+      },
+      {
+        "category": "macho_load_dylinker",
+        "constraint": "macho_dynamic_loader_command",
+        "count": 1,
+        "note": "The linked Mach-O executable records its platform dynamic loader path.",
+        "platform_contract": "Mach-O executable dynamic loader path",
+        "strict_zero_string_compatible": false
+      }
+    ],
+    "failing_zero_string_required_artifacts": [],
+    "missing_zero_string_required_artifacts": [],
+    "platform_container_contract_artifacts": {
+      "android_apk": 12,
+      "ios_linked_minimal": 1
+    },
+    "platform_contract_residuals": 13,
+    "policy_note": "Protected payload/native artifacts must have zero printable strings. Platform containers may retain classified loader, signing, and package metadata only when no unknown or avoidable residuals remain.",
+    "status": "pass",
+    "unknown_or_avoidable_residuals": 0,
+    "zero_string_required_artifacts": {
+      "android_arm64_platform_so": 0,
+      "android_x86_64_platform_so": 0,
+      "ios_linked_strict_zero_strings": 0
+    }
+  },
+  "artifacts": [
+    {
+      "category_counts": {
+        "apk_signature_block": 5,
+        "zip_central_directory": 4,
+        "zip_entry_name": 3
+      },
+      "classified_range_summary": {
+        "count": 9,
+        "sample": [
+          {
+            "category": "zip_entry_name",
+            "end": 49,
+            "entry_kind": "android_manifest",
+            "start": 30
+          },
+          {
+            "category": "zip_entry_payload_stored",
+            "end": 2200,
+            "entry_kind": "android_manifest",
+            "start": 56
+          },
+          {
+            "category": "zip_entry_name",
+            "end": 2248,
+            "entry_kind": "android_native_library",
+            "start": 2230
+          },
+          {
+            "category": "zip_entry_payload_stored",
+            "end": 24984,
+            "entry_kind": "android_native_library",
+            "start": 16384
+          },
+          {
+            "category": "zip_entry_name",
+            "end": 25035,
+            "entry_kind": "android_native_library",
+            "start": 25014
+          },
+          {
+            "category": "zip_entry_payload_stored",
+            "end": 37768,
+            "entry_kind": "android_native_library",
+            "start": 32768
+          },
+          {
+            "category": "zip_central_directory",
+            "end": 45252,
+            "entry_kind": "zip_metadata",
+            "start": 45056
+          },
+          {
+            "category": "zip_eocd",
+            "end": 45274,
+            "entry_kind": "zip_metadata",
+            "start": 45252
+          },
+          {
+            "category": "apk_signature_block",
+            "end": 45056,
+            "entry_kind": "apk_signature",
+            "start": 40960
+          }
+        ],
+        "truncated": false
+      },
+      "entry_kind_counts": {
+        "android_manifest": 1,
+        "android_native_library": 2,
+        "apk_signature": 5,
+        "zip_metadata": 4
+      },
+      "exists": true,
+      "name": "android_apk",
+      "path": "build/android-apk-smoke/mi-smoke.apk",
+      "raw_values_recorded": false,
+      "residual_policy": "platform_container_contract_only",
+      "strict_zero_string": {
+        "blockers": [
+          {
+            "category": "apk_signature_block",
+            "constraint": "apk_signing_block_metadata",
+            "count": 5,
+            "note": "The APK signing block is part of the signed container, not protected program plaintext.",
+            "platform_contract": "Android installable APK signing container",
+            "strict_zero_string_compatible": false
+          },
+          {
+            "category": "zip_central_directory",
+            "constraint": "zip_central_directory_metadata",
+            "count": 4,
+            "note": "Installable APKs retain ZIP directory metadata for package entries.",
+            "platform_contract": "APK-as-ZIP central directory",
+            "strict_zero_string_compatible": false
+          },
+          {
+            "category": "zip_entry_name",
+            "constraint": "zip_entry_name_metadata",
+            "count": 3,
+            "note": "Android package loading requires named entries such as the manifest and native libraries.",
+            "platform_contract": "APK entry lookup names",
+            "strict_zero_string_compatible": false
+          }
+        ],
+        "platform_contract_residuals": 12,
+        "strict_zero_string_compatible": false,
+        "total": 12,
+        "unknown_or_avoidable_residuals": 0
+      },
+      "total_strings": 12
+    },
+    {
+      "category_counts": {},
+      "classified_range_summary": {
+        "count": 1,
+        "sample": [
+          {
+            "category": "native_executable_bytes",
+            "end": 7570,
+            "entry_kind": "android_native_library",
+            "start": 1024
+          }
+        ],
+        "truncated": false
+      },
+      "entry_kind_counts": {},
+      "exists": true,
+      "name": "android_x86_64_platform_so",
+      "path": "build/android-apk-smoke/lib/x86_64/liba.so",
+      "raw_values_recorded": false,
+      "residual_policy": "zero_string_required_artifact",
+      "strict_zero_string": {
+        "blockers": [],
+        "platform_contract_residuals": 0,
+        "strict_zero_string_compatible": true,
+        "total": 0,
+        "unknown_or_avoidable_residuals": 0
+      },
+      "total_strings": 0
+    },
+    {
+      "category_counts": {},
+      "classified_range_summary": {
+        "count": 1,
+        "sample": [
+          {
+            "category": "native_executable_bytes",
+            "end": 4292,
+            "entry_kind": "android_native_library",
+            "start": 812
+          }
+        ],
+        "truncated": false
+      },
+      "entry_kind_counts": {},
+      "exists": true,
+      "name": "android_arm64_platform_so",
+      "path": "build/android-apk-smoke/lib/arm64-v8a/liba.so",
+      "raw_values_recorded": false,
+      "residual_policy": "zero_string_required_artifact",
+      "strict_zero_string": {
+        "blockers": [],
+        "platform_contract_residuals": 0,
+        "strict_zero_string_compatible": true,
+        "total": 0,
+        "unknown_or_avoidable_residuals": 0
+      },
+      "total_strings": 0
+    },
+    {
+      "category_counts": {
+        "macho_load_dylinker": 1
+      },
+      "classified_range_summary": {
+        "count": 0,
+        "sample": [],
+        "truncated": false
+      },
+      "entry_kind_counts": {
+        "ios_macho": 1
+      },
+      "exists": true,
+      "name": "ios_linked_minimal",
+      "path": "build/ios-logic-local/ios_min_exec",
+      "raw_values_recorded": false,
+      "residual_policy": "platform_container_contract_only",
+      "strict_zero_string": {
+        "blockers": [
+          {
+            "category": "macho_load_dylinker",
+            "constraint": "macho_dynamic_loader_command",
+            "count": 1,
+            "note": "The linked Mach-O executable records its platform dynamic loader path.",
+            "platform_contract": "Mach-O executable dynamic loader path",
+            "strict_zero_string_compatible": false
+          }
+        ],
+        "platform_contract_residuals": 1,
+        "strict_zero_string_compatible": false,
+        "total": 1,
+        "unknown_or_avoidable_residuals": 0
+      },
+      "total_strings": 1
+    },
+    {
+      "category_counts": {},
+      "classified_range_summary": {
+        "count": 0,
+        "sample": [],
+        "truncated": false
+      },
+      "entry_kind_counts": {},
+      "exists": true,
+      "name": "ios_linked_strict_zero_strings",
+      "path": "build/ios-logic-local/ios_min_exec_strict",
+      "raw_values_recorded": false,
+      "residual_policy": "zero_string_required_artifact",
+      "strict_zero_string": {
+        "blockers": [],
+        "platform_contract_residuals": 0,
+        "strict_zero_string_compatible": true,
+        "total": 0,
+        "unknown_or_avoidable_residuals": 0
+      },
+      "total_strings": 0
+    }
+  ],
+  "category_counts": {
+    "apk_signature_block": 5,
+    "macho_load_dylinker": 1,
+    "zip_central_directory": 4,
+    "zip_entry_name": 3
+  },
+  "generated_at_utc": "2026-05-05T23:46:38.538195Z",
+  "note": "This report classifies remaining printable byte runs by platform provenance. Protected payload/native artifacts remain subject to zero-string enforcement; platform containers may retain classified loader, signing, and package metadata without being counted as protected program plaintext.",
+  "raw_values_recorded": false,
+  "schema": "vmp.qa.platform_string_residuals.v1",
+  "status": "pass",
+  "strict_zero_string": {
+    "blockers": [
+      {
+        "category": "apk_signature_block",
+        "constraint": "apk_signing_block_metadata",
+        "count": 5,
+        "note": "The APK signing block is part of the signed container, not protected program plaintext.",
+        "platform_contract": "Android installable APK signing container",
+        "strict_zero_string_compatible": false
+      },
+      {
+        "category": "macho_load_dylinker",
+        "constraint": "macho_dynamic_loader_command",
+        "count": 1,
+        "note": "The linked Mach-O executable records its platform dynamic loader path.",
+        "platform_contract": "Mach-O executable dynamic loader path",
+        "strict_zero_string_compatible": false
+      },
+      {
+        "category": "zip_central_directory",
+        "constraint": "zip_central_directory_metadata",
+        "count": 4,
+        "note": "Installable APKs retain ZIP directory metadata for package entries.",
+        "platform_contract": "APK-as-ZIP central directory",
+        "strict_zero_string_compatible": false
+      },
+      {
+        "category": "zip_entry_name",
+        "constraint": "zip_entry_name_metadata",
+        "count": 3,
+        "note": "Android package loading requires named entries such as the manifest and native libraries.",
+        "platform_contract": "APK entry lookup names",
+        "strict_zero_string_compatible": false
+      }
+    ],
+    "platform_contract_residuals": 13,
+    "strict_zero_string_compatible": false,
+    "total": 13,
+    "unknown_or_avoidable_residuals": 0
+  },
+  "total_residual_strings": 13
+}

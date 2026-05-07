@@ -1,0 +1,81 @@
+{
+  "artifact": "build/windows-visible-demo/protected_visible_demo.exe",
+  "artifact_bytes": 16896,
+  "decoy_sections": {
+    "artifact": "build/windows-visible-demo/protected_visible_demo.exe",
+    "decoy_section_count": 2,
+    "final_section_count": 7,
+    "generated_at_utc": "2026-05-07T12:39:41.302552Z",
+    "original_section_count": 5,
+    "schema": "vmp.pe.decoy_sections.v1",
+    "sections": [
+      {
+        "index": 5,
+        "payload_sha256": "43e2e6e1807c1e88ba6a9aef942b746d89e383e6d94a5052a71613c470173fad",
+        "raw_pointer": 15872,
+        "raw_size": 512,
+        "temporary_name_hex": "d0c38eabceba91f2",
+        "virtual_address": 32768,
+        "virtual_size": 280
+      },
+      {
+        "index": 6,
+        "payload_sha256": "9b8b58fe40be717da18e0a8d9dcf68719f2f6f52878e686a8a17116923d218ce",
+        "raw_pointer": 16384,
+        "raw_size": 512,
+        "temporary_name_hex": "aae7ac96c0ade4de",
+        "virtual_address": 36864,
+        "virtual_size": 504
+      }
+    ],
+    "seed_fingerprint": "d51c7dbc59f4f694"
+  },
+  "dynamic_string_protection": {
+    "chunk_plaintext_wiped_after_use": true,
+    "chunked_runtime_decode": true,
+    "ciphertext_generated_per_build": true,
+    "full_plaintext_string_buffer": false,
+    "max_plaintext_chunk_bytes": 20,
+    "mode": "per_build_stream_cipher_chunked_runtime_decode",
+    "per_call_stateful_chunk_schedule": true,
+    "two_pass_plaintext_tag_validation": true
+  },
+  "embedded_sample": "build/windows-visible-demo/protected_sample.vmp",
+  "embedded_sample_bytes": 133,
+  "forbidden_plaintext_hits": [],
+  "output": null,
+  "pe_format": "pei-x86-64",
+  "schema": "vmp.platform.windows_visible_demo_cross_build.v1",
+  "section_name_hex": [
+    "99c8c9f682f7d8d1",
+    "b3aade94bde3fbb4",
+    "dcb5e1c2eda8eea4",
+    "fe94c3b3f3eea6dc",
+    "badac4e2e79498f2",
+    "f59b99aee0c9e0d4",
+    "8fa5ebc3b6d3ea91"
+  ],
+  "section_name_seed_fingerprint": "0f6146fc63d71446",
+  "section_names_randomized": true,
+  "status": "pass",
+  "strings_count": 99,
+  "visible_demo_strings_encrypted": true,
+  "windows_console_api_policy": {
+    "direct_windows_syscalls_enabled": false,
+    "fixed_imports": [
+      "ExitProcess",
+      "GetStdHandle",
+      "ReadFile",
+      "WriteFile"
+    ],
+    "generic_syscall_resolver_allowed": false,
+    "mode": "minimal_fixed_kernel32_console_api",
+    "reason": "The visible release must print and pause reliably; syscall-only Windows I/O is kept out of the accepted release gate under docs/SECURITY_POLICY.md.",
+    "stdin_handle_cached": true,
+    "stdout_handle_cached": true,
+    "writefile_calls_batched": true
+  },
+  "windows_getchar_calls": 3,
+  "wine_execution_note": "Wine is not available in this Linux environment; the PE was cross-built and statically checked.",
+  "wine_execution_status": "skipped"
+}

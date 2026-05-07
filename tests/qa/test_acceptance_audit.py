@@ -1,4 +1,5 @@
 from pathlib import Path
+import json
 import tempfile
 import unittest
 
@@ -75,6 +76,53 @@ class AcceptanceAuditTests(unittest.TestCase):
             findings, _ = acceptance_audit.check_workflows(root)
 
         self.assertTrue(any("pull_request workflow secret" in finding.message for finding in findings))
+
+    def test_release_binary_report_requires_position_independent_linux_runner(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            report = root / "docs/qa/reports/release-protected-binary.json"
+            report.parent.mkdir(parents=True)
+            report.write_text(json.dumps({
+                "schema": "vmp.release.protected_binary.v1",
+                "status": "pass",
+                "forbidden_plaintext_hits": [],
+                "behavior_cases_passed": 4,
+                "elf_load_layout": {
+                    "elf_type": "EXEC",
+                    "position_independent_executable": False,
+                    "fixed_load_address": True,
+                },
+            }), encoding="utf-8")
+
+            findings, metrics = acceptance_audit.check_release_binary_report(root)
+
+        self.assertEqual(metrics["release_binary_reports"], 1)
+        self.assertTrue(any("position-independent ET_DYN" in finding.message for finding in findings))
+        self.assertTrue(any("fixed load address" in finding.message for finding in findings))
+
+    def test_release_binary_report_accepts_static_pie_linux_runner(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            report = root / "docs/qa/reports/release-protected-binary.json"
+            report.parent.mkdir(parents=True)
+            report.write_text(json.dumps({
+                "schema": "vmp.release.protected_binary.v1",
+                "status": "pass",
+                "forbidden_plaintext_hits": [],
+                "behavior_cases_passed": 4,
+                "elf_load_layout": {
+                    "elf_type": "DYN",
+                    "position_independent_executable": True,
+                    "fixed_load_address": False,
+                    "program_interpreter_present": False,
+                    "dynamic_section_present": True,
+                },
+            }), encoding="utf-8")
+
+            findings, metrics = acceptance_audit.check_release_binary_report(root)
+
+        self.assertEqual(metrics["release_binary_reports"], 1)
+        self.assertEqual(findings, [])
 
     def test_three_runs_are_deterministic(self):
         reports = [acceptance_audit.run_once(ROOT) for _ in range(3)]

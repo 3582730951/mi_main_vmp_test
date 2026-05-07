@@ -29,9 +29,24 @@ import pathlib
 import sys
 
 out_dir = pathlib.Path(sys.argv[1])
+artifact = (out_dir / "protected_sample.vmp").read_bytes()
 behavior = json.loads((out_dir / "behavior.json").read_text())
 strings = json.loads((out_dir / "strings.json").read_text())
 randomness = json.loads((out_dir / "randomness.json").read_text())
+
+def printable_runs(data, min_length=4):
+    runs = []
+    current = bytearray()
+    for byte in data:
+        if 0x20 <= byte <= 0x7E:
+            current.append(byte)
+            continue
+        if len(current) >= min_length:
+            runs.append(bytes(current))
+        current.clear()
+    if len(current) >= min_length:
+        runs.append(bytes(current))
+    return runs
 
 assert behavior["schema"] == "vmp.sample.behavior.v1"
 assert behavior["consistent"] is True
@@ -42,6 +57,7 @@ assert all(case["status"] == "Ok" for case in behavior["cases"])
 assert strings["schema"] == "vmp.sample.strings.v1"
 assert strings["critical_strings_absent"] is True
 assert all(check["present"] is False for check in strings["checks"])
+assert printable_runs(artifact) == []
 
 assert randomness["schema"] == "vmp.sample.randomness.v1"
 assert randomness["payload_bytes"] > 0

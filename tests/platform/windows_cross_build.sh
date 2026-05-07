@@ -24,7 +24,7 @@ exe="$build_dir/mi_platform_smoke.exe"
 "$cc" -O2 -shared \
   -I src/platform \
   src/platform/platform_common.c src/platform/windows/windows_adapter.c \
-  -Wl,--out-implib,"$build_dir/libmi_platform.dll.a" \
+  -Wl,--exclude-all-symbols,--out-implib,"$build_dir/libmi_platform.dll.a" \
   -o "$dll"
 
 "$cc" -O2 \
@@ -32,10 +32,35 @@ exe="$build_dir/mi_platform_smoke.exe"
   src/platform/platform_common.c src/platform/windows/windows_adapter.c src/platform/windows/windows_smoke.c \
   -o "$exe"
 
+python3 scripts/audit/scrub_pe_export_directory.py "$dll"
+
 "$objdump" -f "$dll" | grep -q 'pei-x86-64'
 "$objdump" -f "$exe" | grep -q 'pei-x86-64'
 "$objdump" -p "$dll" >"$build_dir/mi_platform.dll.pe.txt"
 "$objdump" -p "$exe" >"$build_dir/mi_platform_smoke.exe.pe.txt"
+
+python3 - "$dll" <<'PY'
+import pathlib
+import struct
+import sys
+
+path = pathlib.Path(sys.argv[1])
+data = path.read_bytes()
+pe_offset = struct.unpack_from("<I", data, 0x3C)[0]
+if data[pe_offset:pe_offset + 4] != b"PE\0\0":
+    raise SystemExit("missing PE signature")
+optional = pe_offset + 24
+magic = struct.unpack_from("<H", data, optional)[0]
+if magic == 0x20B:
+    data_directories = optional + 112
+elif magic == 0x10B:
+    data_directories = optional + 96
+else:
+    raise SystemExit(f"unsupported PE optional header magic: 0x{magic:x}")
+export_rva, export_size = struct.unpack_from("<II", data, data_directories)
+if export_rva or export_size:
+    raise SystemExit(f"Windows platform DLL export directory is present: rva=0x{export_rva:x} size={export_size}")
+PY
 
 for artifact in "$dll" "$exe"; do
   if strings -a "$artifact" | grep -E 'passwd\.txt|GITHUB_PAT|REMOTE_PAT|CRITICAL_AUTHZ_TOKEN_SAMPLE|https://license\.sample\.invalid'; then
@@ -66,6 +91,7 @@ report.write_text(json.dumps({
         {"path": str(exe), "kind": "exe", "bytes": exe.stat().st_size},
     ],
     "pe_format": "pei-x86-64",
+    "dll_export_directory_present": False,
     "forbidden_strings_present": False,
     "blocking_note": "Generated PE artifacts are local cross-build evidence only; Windows GitHub Actions execution is still required for hard acceptance."
 }, indent=2, sort_keys=True) + "\n", encoding="utf-8")

@@ -34,3 +34,14 @@ def test_surface_policy_finds_protected_plaintext_and_import_resolver_names() ->
         SurfaceCategory.PROTECTED_PLAINTEXT,
         SurfaceCategory.IMPORT_RESOLVER_NAME,
     ]
+
+
+def test_surface_policy_finds_fixed_windows_api_names() -> None:
+    policy = ArtifactSurfacePolicy.default()
+    result = policy.scan_bytes(Path("fixture.bin"), b"KERNEL32.dll imports ExitProcess")
+
+    assert not result.passed
+    assert [finding.category for finding in result.findings] == [
+        SurfaceCategory.IMPORT_RESOLVER_NAME,
+        SurfaceCategory.IMPORT_RESOLVER_NAME,
+    ]

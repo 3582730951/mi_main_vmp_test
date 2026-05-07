@@ -1,0 +1,551 @@
+{
+  "automation": {
+    "available_external_tools": [
+      "lief",
+      "radare2-r2pipe",
+      "angr",
+      "external-callgraph-consensus"
+    ],
+    "defense_floor_preserved": true,
+    "direct_protected_xrefs_removed_after_rewrite": true,
+    "external_callgraph_consensus": {
+      "backend_count": 2,
+      "status": "pass",
+      "tool": "external-callgraph-consensus",
+      "total_call_edges_observed": 16,
+      "total_functions_observed": 17
+    },
+    "external_tool_results": [
+      {
+        "status": "pass",
+        "tool": "lief"
+      },
+      {
+        "reason": "capa could not analyze this artifact",
+        "status": "unavailable",
+        "tool": "capa"
+      },
+      {
+        "reason": "FLOSS command is not installed",
+        "status": "unavailable",
+        "tool": "floss"
+      },
+      {
+        "status": "pass",
+        "tool": "radare2-r2pipe"
+      },
+      {
+        "reason": "rizin command is not installed",
+        "status": "unavailable",
+        "tool": "rizin"
+      },
+      {
+        "status": "pass",
+        "tool": "angr"
+      },
+      {
+        "reason": "Ghidra analyzeHeadless command is not installed",
+        "status": "unavailable",
+        "tool": "ghidra"
+      },
+      {
+        "backend_count": 2,
+        "status": "pass",
+        "tool": "external-callgraph-consensus",
+        "total_call_edges_observed": 16,
+        "total_functions_observed": 17
+      }
+    ],
+    "github_tool_sources": [
+      {
+        "github": "https://github.com/lief-project/LIEF",
+        "purpose": "Parse PE, ELF, and Mach-O metadata for protected artifact surface checks.",
+        "tool": "lief"
+      },
+      {
+        "github": "https://github.com/mandiant/capa",
+        "purpose": "Scan executable capability patterns with the FLARE capa ruleset.",
+        "tool": "capa"
+      },
+      {
+        "github": "https://github.com/angr/angr",
+        "purpose": "Optional CFG/callgraph exploration when the heavy Python analysis stack is installed.",
+        "tool": "angr"
+      },
+      {
+        "github": "https://github.com/radareorg/radare2",
+        "purpose": "Optional executable disassembly, xref, and function graph analysis backend.",
+        "tool": "radare2"
+      },
+      {
+        "github": "https://github.com/radareorg/radare2-r2pipe",
+        "purpose": "Optional scriptable xref/callgraph extraction when radare2 is installed.",
+        "tool": "radare2-r2pipe"
+      },
+      {
+        "github": "https://github.com/rizinorg/rizin",
+        "purpose": "Optional executable disassembly, xref, and function graph analysis backend.",
+        "tool": "rizin"
+      },
+      {
+        "github": "https://github.com/NationalSecurityAgency/ghidra",
+        "purpose": "Optional headless function, xref, and callgraph inventory backend.",
+        "tool": "ghidra"
+      },
+      {
+        "github": "https://github.com/mandiant/capa-rules",
+        "purpose": "Optional capability rule corpus used when capa is available.",
+        "tool": "capa-rules"
+      },
+      {
+        "github": "https://github.com/mandiant/flare-floss",
+        "purpose": "Optional recovered-string scan for stack, tight, decoded, and static strings.",
+        "tool": "floss"
+      }
+    ],
+    "high_frequency_callsite_optimization": true,
+    "note": "GitHub-hosted reverse-analysis tools are optional automation inputs. Missing tools are reported explicitly so local gates remain deterministic; CI attempts to install them and records any results.",
+    "per_callsite_thunks_preserved": true,
+    "protected_callgraph_report_status": "pass",
+    "protected_function_xref_discovery": true,
+    "reverse_cost_report_status": "pass"
+  },
+  "checks": [
+    {
+      "android_actual_apk_surface": {
+        "artifact": "build/android-apk-smoke/mi-smoke.apk",
+        "byte_marker_hits": [],
+        "entry_marker_hits": [],
+        "present": true,
+        "zip_read_error": null
+      },
+      "evidence": [
+        "docs/qa/reports/surface-minimization.json",
+        "docs/qa/reports/release-protected-binary.json",
+        "docs/qa/reports/windows-protected-cross-build.json",
+        "docs/qa/reports/android-apk-smoke.json",
+        "docs/qa/reports/ios-macho-metadata.json",
+        "docs/qa/reports/ios-macho-linked-minimal.json"
+      ],
+      "ios_macho_best_observed_surface_findings": 0,
+      "note": "Avoidable standard PE/ELF/APK/Mach-O metadata is minimized only for platform reports that are present and passing; mandatory loader/container headers remain platform-required. The strict Mach-O surface check remains partial when standard load-command, segment, section, or signature metadata is observed.",
+      "platform_scope": {
+        "android_actual_apk_marker_free": true,
+        "android_apk_release_like": true,
+        "ios_macho_linked_minimal_report": true,
+        "ios_macho_metadata_report": true,
+        "ios_macho_strict_standard_surface_free": true,
+        "linux_elf_release": true,
+        "windows_pe_cross_build": true
+      },
+      "requirement": "1_platform_standard_feature_minimization",
+      "status": "pass"
+    },
+    {
+      "evidence": [
+        "docs/qa/reports/surface-minimization.json"
+      ],
+      "note": "Surface policy fails on VM, OLLVM, and product markers.",
+      "requirement": "2_vm_ollvm_standard_marker_absence",
+      "status": "pass"
+    },
+    {
+      "evidence": [
+        "samples/protected_chain/out/protected_sample.vmp",
+        "artifacts/protected/linux/protected_release_sample",
+        "build/windows-protected-cross/protected_release_sample.exe",
+        "docs/qa/reports/surface-minimization.json",
+        "docs/qa/reports/platform-string-residuals.json"
+      ],
+      "note": "Protected payload/native artifacts have zero printable byte runs except the Windows release console demo, whose visible output strings are encrypted and whose residual printable strings are fixed loader/API names or non-plaintext byte runs. The Windows visible demo additionally uses chunked runtime decode, two-pass plaintext tag validation, and chunk wiping; remaining platform-container strings are classified platform contract metadata, not protected program plaintext.",
+      "observed_strings_count": {
+        "android_apk": 12,
+        "android_arm64_platform_so": 0,
+        "android_x86_64_platform_so": 0,
+        "ios_linked_minimal": 1,
+        "ios_linked_strict_zero_strings": 0,
+        "linux_release": 0,
+        "sample_vmp": 0,
+        "windows_release": 99
+      },
+      "platform_container_strings_count": {
+        "android_apk": 12,
+        "ios_linked_minimal": 1
+      },
+      "platform_string_residuals": {
+        "accepted_payload_policy": {
+          "contract_blockers": [
+            {
+              "category": "apk_signature_block",
+              "constraint": "apk_signing_block_metadata",
+              "count": 5,
+              "note": "The APK signing block is part of the signed container, not protected program plaintext.",
+              "platform_contract": "Android installable APK signing container",
+              "strict_zero_string_compatible": false
+            },
+            {
+              "category": "zip_central_directory",
+              "constraint": "zip_central_directory_metadata",
+              "count": 4,
+              "note": "Installable APKs retain ZIP directory metadata for package entries.",
+              "platform_contract": "APK-as-ZIP central directory",
+              "strict_zero_string_compatible": false
+            },
+            {
+              "category": "zip_entry_name",
+              "constraint": "zip_entry_name_metadata",
+              "count": 3,
+              "note": "Android package loading requires named entries such as the manifest and native libraries.",
+              "platform_contract": "APK entry lookup names",
+              "strict_zero_string_compatible": false
+            },
+            {
+              "category": "macho_load_dylinker",
+              "constraint": "macho_dynamic_loader_command",
+              "count": 1,
+              "note": "The linked Mach-O executable records its platform dynamic loader path.",
+              "platform_contract": "Mach-O executable dynamic loader path",
+              "strict_zero_string_compatible": false
+            }
+          ],
+          "failing_zero_string_required_artifacts": [],
+          "missing_zero_string_required_artifacts": [],
+          "platform_container_contract_artifacts": {
+            "android_apk": 12,
+            "ios_linked_minimal": 1
+          },
+          "platform_contract_residuals": 13,
+          "policy_note": "Protected payload/native artifacts must have zero printable strings. Platform containers may retain classified loader, signing, and package metadata only when no unknown or avoidable residuals remain.",
+          "status": "pass",
+          "unknown_or_avoidable_residuals": 0,
+          "zero_string_required_artifacts": {
+            "android_arm64_platform_so": 0,
+            "android_x86_64_platform_so": 0,
+            "ios_linked_strict_zero_strings": 0
+          }
+        },
+        "category_counts": {
+          "apk_signature_block": 5,
+          "macho_load_dylinker": 1,
+          "zip_central_directory": 4,
+          "zip_entry_name": 3
+        },
+        "raw_values_recorded": false,
+        "status": "pass",
+        "strict_zero_string": {
+          "blockers": [
+            {
+              "category": "apk_signature_block",
+              "constraint": "apk_signing_block_metadata",
+              "count": 5,
+              "note": "The APK signing block is part of the signed container, not protected program plaintext.",
+              "platform_contract": "Android installable APK signing container",
+              "strict_zero_string_compatible": false
+            },
+            {
+              "category": "macho_load_dylinker",
+              "constraint": "macho_dynamic_loader_command",
+              "count": 1,
+              "note": "The linked Mach-O executable records its platform dynamic loader path.",
+              "platform_contract": "Mach-O executable dynamic loader path",
+              "strict_zero_string_compatible": false
+            },
+            {
+              "category": "zip_central_directory",
+              "constraint": "zip_central_directory_metadata",
+              "count": 4,
+              "note": "Installable APKs retain ZIP directory metadata for package entries.",
+              "platform_contract": "APK-as-ZIP central directory",
+              "strict_zero_string_compatible": false
+            },
+            {
+              "category": "zip_entry_name",
+              "constraint": "zip_entry_name_metadata",
+              "count": 3,
+              "note": "Android package loading requires named entries such as the manifest and native libraries.",
+              "platform_contract": "APK entry lookup names",
+              "strict_zero_string_compatible": false
+            }
+          ],
+          "platform_contract_residuals": 13,
+          "strict_zero_string_compatible": false,
+          "total": 13,
+          "unknown_or_avoidable_residuals": 0
+        },
+        "total_residual_strings": 13
+      },
+      "protected_payload_strings_count": {
+        "android_arm64_platform_so": 0,
+        "android_x86_64_platform_so": 0,
+        "ios_linked_strict_zero_strings": 0,
+        "linux_release": 0,
+        "sample_vmp": 0,
+        "windows_release": 99
+      },
+      "requirement": "3_all_strings_ciphertext_no_plaintext",
+      "status": "pass",
+      "windows_dynamic_string_protection": {
+        "chunk_plaintext_wiped_after_use": true,
+        "chunked_runtime_decode": true,
+        "ciphertext_generated_per_build": true,
+        "full_plaintext_string_buffer": false,
+        "max_plaintext_chunk_bytes": 20,
+        "mode": "per_build_stream_cipher_chunked_runtime_decode",
+        "per_call_stateful_chunk_schedule": true,
+        "two_pass_plaintext_tag_validation": true
+      },
+      "windows_release_forbidden_plaintext_hits": [],
+      "windows_string_classification": {
+        "executable_section_strings": 80,
+        "non_executable_section_strings": 19,
+        "total": 99,
+        "unknown_section_strings": 0
+      },
+      "windows_visible_release_dynamic_strings_protected": true,
+      "windows_visible_release_strings_protected": true
+    },
+    {
+      "evidence": [
+        "docs/qa/reports/surface-minimization.json",
+        "docs/qa/reports/windows-protected-cross-build.json",
+        "docs/qa/reports/protected-callgraph.json",
+        "docs/qa/reports/reverse-cost-assessment.json"
+      ],
+      "note": "Linux protected release has no dynamic import/export; Windows protected PE either has no import/export/TLS directory or only the fixed Kernel32 console imports required by the encrypted visible demo. Protected callgraph evidence also verifies direct protected xrefs are discovered before rewrite and removed after callsite thunking.",
+      "requirement": "4_import_export_tls_minimized",
+      "status": "pass"
+    },
+    {
+      "evidence": [
+        "docs/SECURITY_POLICY.md",
+        "docs/qa/reports/surface-minimization.json"
+      ],
+      "fixed_runtime_syscall_source": {
+        "allowed_fixed_linux_exit_only": true,
+        "has_exit_status_register": true,
+        "has_fixed_exit_number": true,
+        "has_linux_x86_64_guard": true,
+        "path": "tools/vmp/protected_release_main.cpp",
+        "present": true,
+        "syscall_token_count": 1
+      },
+      "note": "Platform adapters are self-contained and do not call libc/WinAPI/dlopen/syscall resolver paths. The only direct syscall in release source is the fixed Linux x86_64 exit path used by the CRT-free runner; Windows release evidence has either no import/export/TLS directory or only the fixed Kernel32 console imports needed by the encrypted visible demo, with stdout/stdin handle caching and batched WriteFile calls for the visible release.",
+      "platform_source_evidence": {
+        "android": {
+          "disallowed_marker_hits": [],
+          "files": [
+            "src/platform/android/android_adapter.c",
+            "src/platform/platform_common.c"
+          ],
+          "missing_files": [],
+          "self_contained": true
+        },
+        "ios": {
+          "disallowed_marker_hits": [],
+          "files": [
+            "src/platform/ios/ios_adapter.c",
+            "src/platform/platform_common.c"
+          ],
+          "missing_files": [],
+          "self_contained": true
+        },
+        "linux": {
+          "disallowed_marker_hits": [],
+          "files": [
+            "src/platform/linux/linux_adapter.c",
+            "src/platform/platform_common.c"
+          ],
+          "missing_files": [],
+          "self_contained": true
+        },
+        "windows": {
+          "disallowed_marker_hits": [],
+          "files": [
+            "src/platform/windows/windows_adapter.c",
+            "src/platform/platform_common.c"
+          ],
+          "missing_files": [],
+          "self_contained": true
+        }
+      },
+      "policy_evidence": {
+        "fixed_linux_exit_allowed": true,
+        "linux_release_no_dynamic_import_export": true,
+        "platform_adapters_self_contained": true,
+        "runtime_syscall_limited_to_fixed_linux_exit": true,
+        "security_boundary_present": true,
+        "windows_direct_syscalls_disabled": true,
+        "windows_release_api_call_minimized": true,
+        "windows_release_fixed_api_surface": true
+      },
+      "requirement": "5_syscall_policy",
+      "status": "pass",
+      "windows_console_api_policy": {
+        "direct_windows_syscalls_enabled": false,
+        "fixed_imports": [
+          "ExitProcess",
+          "GetStdHandle",
+          "ReadFile",
+          "WriteFile"
+        ],
+        "generic_syscall_resolver_allowed": false,
+        "mode": "minimal_fixed_kernel32_console_api",
+        "reason": "The visible release must print and pause reliably; syscall-only Windows I/O is kept out of the accepted release gate under docs/SECURITY_POLICY.md.",
+        "stdin_handle_cached": true,
+        "stdout_handle_cached": true,
+        "writefile_calls_batched": true
+      }
+    },
+    {
+      "evidence": [
+        "samples/protected_chain/out/behavior.json",
+        "docs/qa/reports/release-protected-binary.json",
+        "docs/qa/reports/windows-protected-release.json",
+        "docs/qa/reports/android-apk-smoke.json",
+        "docs/qa/reports/android-emulator-smoke.json",
+        "docs/qa/reports/ios-macho-metadata.json",
+        "docs/qa/reports/ios-macho-linked-minimal.json"
+      ],
+      "note": "Protected sample behavior is equivalent for all four cases; Linux release executes the embedded protected payload locally; Windows and Android reports are real GitHub Actions runner/emulator execution evidence; iOS is constrained to no-JIT/Mach-O logic evidence.",
+      "requirement": "6_protected_program_stability",
+      "stability_evidence": {
+        "android_apk_emulator_executes_protected_sample": true,
+        "android_native_emulator_smoke_consistent": true,
+        "ios_macho_logic_artifacts_valid": true,
+        "linux_release_executes_four_cases": true,
+        "sample_behavior_consistent": true,
+        "windows_github_release_executes_four_cases": true
+      },
+      "status": "pass"
+    }
+  ],
+  "completion_note": "All objective checks passed against the available artifact evidence. Platform adapters stay self-contained, the only direct syscall is the fixed Linux exit path, protected payload/native artifacts have zero printable strings except the encrypted Windows visible console demo, and protected execution evidence is passing across the available Linux, Windows, Android, and iOS gates.",
+  "generated_at_utc": "2026-05-07T18:12:09.510876Z",
+  "objective": [
+    "make platform syscall/API access self-contained where possible and avoid system/API calls unless necessary",
+    "prove protected programs run stably after protection with executable platform evidence",
+    "keep supporting surface, string, import/export/TLS, and marker minimization gates green"
+  ],
+  "prompt_to_artifact_checklist": [
+    {
+      "artifacts": [
+        "docs/SECURITY_POLICY.md",
+        "docs/qa/reports/surface-minimization.json"
+      ],
+      "coverage_note": "Covers source-level platform adapter markers, the single fixed Linux exit syscall, and release artifact dynamic-surface minimization. The Windows encrypted console demo may keep fixed Kernel32 console imports, but release evidence must show stdout/stdin handle caching and batched WriteFile use; generic direct-syscall/API resolvers remain prohibited.",
+      "prompt_item": "1. syscall must be self-contained per platform where possible and must avoid system/API calls unless necessary",
+      "requirement": "5_syscall_policy",
+      "status": "pass",
+      "verification": [
+        "python3 scripts/audit/surface_minimization_audit.py --root .",
+        "python3 scripts/audit/objective_completion_audit.py --root .",
+        "bash tests/integration/run_release_protected_binary.sh",
+        "bash tests/platform/windows_release_cross_build.sh"
+      ]
+    },
+    {
+      "artifacts": [
+        "samples/protected_chain/out/behavior.json",
+        "docs/qa/reports/release-protected-binary.json",
+        "docs/qa/reports/windows-protected-release.json",
+        "docs/qa/reports/android-apk-smoke.json",
+        "docs/qa/reports/android-emulator-smoke.json",
+        "docs/qa/reports/ios-macho-metadata.json",
+        "docs/qa/reports/ios-macho-linked-minimal.json"
+      ],
+      "coverage_note": "Covers protected sample behavior equivalence plus Linux, Windows GitHub Actions, Android emulator, and iOS logic evidence. This is an evidence gate for stable execution, not a mathematical guarantee.",
+      "prompt_item": "2. protected programs must run stably after protection",
+      "requirement": "6_protected_program_stability",
+      "status": "pass",
+      "verification": [
+        "bash tests/integration/run_protected_sample_chain.sh",
+        "bash tests/integration/run_release_protected_binary.sh",
+        "pwsh tests/platform/windows_protected_release.ps1",
+        "bash tests/platform/android_apk_smoke.sh",
+        "bash tests/platform/android_emulator_smoke.sh",
+        "bash tests/platform/ios_logic_check.sh"
+      ]
+    },
+    {
+      "artifacts": [
+        "samples/protected_chain/out/protected_sample.vmp",
+        "artifacts/protected/linux/protected_release_sample",
+        "build/windows-protected-cross/protected_release_sample.exe",
+        "docs/qa/reports/surface-minimization.json",
+        "docs/qa/reports/platform-string-residuals.json"
+      ],
+      "coverage_note": "Protected payload/native artifacts must have zero literal printable runs unless the artifact is the Windows encrypted visible console demo, where printed text must be encrypted and forbidden plaintext hits must be zero. The visible console demo must also report chunked runtime decode, two-pass plaintext tag validation, and plaintext chunk wiping. Platform APK/Mach-O container residuals must be classified as loader, signing, or package metadata with no unknown or avoidable residuals. Raw string values are not recorded.",
+      "prompt_item": "supporting gate: protected artifacts must not expose plaintext strings",
+      "requirement": "3_all_strings_ciphertext_no_plaintext",
+      "status": "pass",
+      "verification": [
+        "strings -a samples/protected_chain/out/protected_sample.vmp",
+        "strings -a artifacts/protected/linux/protected_release_sample",
+        "strings -a build/windows-protected-cross/protected_release_sample.exe",
+        "python3 scripts/audit/platform_string_residuals.py --root ."
+      ]
+    },
+    {
+      "artifacts": [
+        "docs/qa/reports/surface-minimization.json",
+        "docs/qa/reports/windows-protected-cross-build.json",
+        "docs/qa/reports/protected-callgraph.json",
+        "docs/qa/reports/reverse-cost-assessment.json"
+      ],
+      "coverage_note": "Covers PE export/TLS directories, ELF dynamic imports/exports, and the fixed Windows console import allowlist required by the encrypted visible demo.",
+      "prompt_item": "supporting gate: minimize import/export/TLS and callable dynamic surface",
+      "requirement": "4_import_export_tls_minimized",
+      "status": "pass",
+      "verification": [
+        "python3 scripts/audit/surface_minimization_audit.py --root .",
+        "python3 scripts/audit/protected_callgraph_audit.py --root .",
+        "python3 scripts/audit/generate_reverse_cost_assessment.py --root .",
+        "x86_64-w64-mingw32-objdump -p build/windows-protected-cross/protected_release_sample.exe"
+      ]
+    },
+    {
+      "artifacts": [
+        "docs/qa/reports/surface-minimization.json"
+      ],
+      "coverage_note": "Covers configured forbidden VM, OLLVM, product, seed, and protected-business markers.",
+      "prompt_item": "supporting gate: remove VM/OLLVM/product and standard flattening markers",
+      "requirement": "2_vm_ollvm_standard_marker_absence",
+      "status": "pass",
+      "verification": [
+        "python3 scripts/audit/surface_minimization_audit.py --root ."
+      ]
+    },
+    {
+      "artifacts": [
+        "docs/qa/reports/surface-minimization.json",
+        "docs/qa/reports/release-protected-binary.json",
+        "docs/qa/reports/windows-protected-cross-build.json",
+        "docs/qa/reports/android-apk-smoke.json",
+        "docs/qa/reports/ios-macho-metadata.json",
+        "docs/qa/reports/ios-macho-linked-minimal.json"
+      ],
+      "coverage_note": "Covers avoidable PE/ELF metadata; mandatory loader headers are not treated as removable.",
+      "prompt_item": "supporting gate: minimize standard PE/platform-identifying metadata where safely removable",
+      "requirement": "1_platform_standard_feature_minimization",
+      "status": "pass",
+      "verification": [
+        "python3 scripts/audit/surface_minimization_audit.py --root .",
+        "bash tests/integration/run_release_protected_binary.sh",
+        "bash tests/platform/windows_release_cross_build.sh"
+      ]
+    }
+  ],
+  "residual_blockers": [],
+  "schema": "vmp.qa.objective_completion_audit.v1",
+  "security_boundary_present": true,
+  "status": "pass",
+  "success_criteria": [
+    "all objective checks must be pass",
+    "platform adapters must be source-clean for disallowed syscall/API resolver markers",
+    "release source may contain only the fixed Linux x86_64 exit syscall",
+    "Linux, Windows, Android, and iOS stability evidence must be present and passing",
+    "all protected payload/native artifacts must have zero literal printable runs, except the Windows encrypted visible console demo whose printed text must not appear as plaintext",
+    "APK/Mach-O platform-container printable runs must be classified contract metadata with no unknown or avoidable residuals",
+    "no generic direct-syscall bypass may be introduced against project security policy"
+  ]
+}

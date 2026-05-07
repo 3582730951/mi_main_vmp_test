@@ -131,3 +131,24 @@ extern "C" std::int32_t vmp_runtime_entry_i32_i32_i32_i32_i32(const std::uint8_t
                                                                std::int32_t arg1,
                                                                std::int32_t arg2,
                                                                std::int32_t arg3);
+
+extern "C" std::int64_t vmp_runtime_entry_i64(const std::uint8_t *bytecode,
+                                               std::uint64_t bytecodeSize);
+extern "C" std::int64_t vmp_runtime_entry_i64_i64(const std::uint8_t *bytecode,
+                                                   std::uint64_t bytecodeSize,
+                                                   std::int64_t arg);
+extern "C" std::int64_t vmp_runtime_entry_i64_i64_i64(const std::uint8_t *bytecode,
+                                                       std::uint64_t bytecodeSize,
+                                                       std::int64_t arg0,
+                                                       std::int64_t arg1);
+extern "C" std::int64_t vmp_runtime_entry_i64_i64_i64_i64(const std::uint8_t *bytecode,
+                                                           std::uint64_t bytecodeSize,
+                                                           std::int64_t arg0,
+                                                           std::int64_t arg1,
+                                                           std::int64_t arg2);
+extern "C" std::int64_t vmp_runtime_entry_i64_i64_i64_i64_i64(const std::uint8_t *bytecode,
+                                                               std::uint64_t bytecodeSize,
+                                                               std::int64_t arg0,
+                                                               std::int64_t arg1,
+                                                               std::int64_t arg2,
+                                                               std::int64_t arg3);

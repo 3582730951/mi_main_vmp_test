@@ -24,6 +24,8 @@ if ($null -eq $dll) {
   throw "Windows DLL artifact was not produced"
 }
 
+python scripts/audit/scrub_pe_export_directory.py $dll.FullName
+
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;

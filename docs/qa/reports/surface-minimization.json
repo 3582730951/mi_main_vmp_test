@@ -1,8 +1,8 @@
 {
   "avoidable_surface_findings": 0,
-  "generated_at_utc": "2026-05-05T08:35:36.139643Z",
+  "generated_at_utc": "2026-05-07T18:11:18.572076Z",
   "missing_artifacts": [],
-  "policy_note": "Mandatory executable-container signatures are observed, not treated as removable. This gate fails on avoidable product, VM, OLLVM, protected plaintext, explicit import-resolver markers, printable PE section names, COFF symbol tables, standard PE section-name string residue, ELF section headers, and standard ELF section-name string residue.",
+  "policy_note": "Mandatory executable-container signatures are observed, not treated as removable. This gate fails on avoidable product, VM, OLLVM, protected plaintext, explicit import-resolver markers, printable PE section names, COFF symbol tables, standard PE section-name string residue, unexpected PE imports, PE export/TLS directories, ELF dynamic imports/exports, ELF section headers, and standard ELF section-name string residue.",
   "scanned_artifacts": [
     {
       "artifact": "artifacts/protected/linux/protected_release_sample",
@@ -21,6 +21,7 @@
         "export_count": 0,
         "export_names": [],
         "import_count": 0,
+        "import_names": [],
         "note": "ELF dynamic linker metadata is recorded separately from avoidable protected-surface markers.",
         "status": "observed",
         "tool": "readelf"
@@ -32,14 +33,41 @@
           "tool": "capa"
         },
         "lief": {
-          "install_hint": "python3 -m pip install lief",
-          "status": "unavailable",
+          "entrypoint": 4096,
+          "export_count": 0,
+          "exported_functions_sample": [],
+          "format": "FORMATS.ELF",
+          "has_tls": false,
+          "import_count": 0,
+          "imported_functions_sample": [],
+          "libraries": [],
+          "library_count": 0,
+          "section_count": 0,
+          "sections_sample": [],
+          "status": "observed",
           "tool": "lief"
         },
         "rizin": {
-          "install_hint": "install rizin or radare2",
-          "status": "unavailable",
-          "tool": "rizin/radare2"
+          "function_count": 15,
+          "functions_sample": [
+            "entry0",
+            "fcn.00001019",
+            "fcn.00001061",
+            "fcn.0000108a",
+            "fcn.000010d7",
+            "fcn.00001122",
+            "fcn.0000122d",
+            "fcn.00001252",
+            "fcn.00001794",
+            "fcn.00001a75",
+            "fcn.00001cf8",
+            "fcn.00002079",
+            "fcn.000023b7",
+            "fcn.00002796",
+            "fcn.00002aaa"
+          ],
+          "status": "observed",
+          "tool": "r2"
         }
       },
       "findings": [],
@@ -51,7 +79,16 @@
       "metadata_findings": [],
       "passed": true,
       "pe_metadata_observations": {},
-      "pe_observations": {}
+      "pe_observations": {},
+      "pe_printable_string_section_observations": {},
+      "platform_findings": [],
+      "printable_string_observations": {
+        "count": 0,
+        "max_length": 0,
+        "policy": "forbidden patterns fail the gate; residual printable byte runs are tracked without writing raw strings",
+        "raw_values_recorded": false,
+        "sha256": null
+      }
     },
     {
       "artifact": "samples/protected_chain/out/protected_sample.vmp",
@@ -65,8 +102,7 @@
           "tool": "capa"
         },
         "lief": {
-          "install_hint": "python3 -m pip install lief",
-          "status": "unavailable",
+          "status": "unsupported_format",
           "tool": "lief"
         },
         "rizin": {
@@ -80,7 +116,16 @@
       "metadata_findings": [],
       "passed": true,
       "pe_metadata_observations": {},
-      "pe_observations": {}
+      "pe_observations": {},
+      "pe_printable_string_section_observations": {},
+      "platform_findings": [],
+      "printable_string_observations": {
+        "count": 0,
+        "max_length": 0,
+        "policy": "forbidden patterns fail the gate; residual printable byte runs are tracked without writing raw strings",
+        "raw_values_recorded": false,
+        "sha256": null
+      }
     },
     {
       "artifact": "build/windows-protected-cross/protected_release_sample.exe",
@@ -94,14 +139,61 @@
           "tool": "capa"
         },
         "lief": {
-          "install_hint": "python3 -m pip install lief",
-          "status": "unavailable",
+          "entrypoint": 5368719824,
+          "export_count": 0,
+          "exported_functions_sample": [],
+          "format": "FORMATS.PE",
+          "has_tls": false,
+          "import_count": 4,
+          "imported_functions_sample": [
+            "ExitProcess",
+            "GetStdHandle",
+            "ReadFile",
+            "WriteFile"
+          ],
+          "libraries": [
+            "KERNEL32.dll"
+          ],
+          "library_count": 1,
+          "section_count": 9,
+          "sections_sample": [
+            "b'\\xa1\\xe5\\xe3\\x8b\\xaa\\xf8\\xe9\\xc8'",
+            "b'\\xa7\\xdb\\xc3\\xd0\\x88\\x88\\xff\\xc5'",
+            "b'\\xbf\\xb7\\xbc\\xbb\\xc9\\xf1\\xa5\\xf3'",
+            "b'\\xc6\\xfb\\xd3\\x8a\\xca\\xd8\\xf3\\xd0'",
+            "b'\\xd1\\x9e\\x9c\\xfa\\xc8\\xb3\\xfa\\xdf'",
+            "b'\\xdb\\x94\\xe2\\xf0\\xd8\\xcb\\xc9\\xef'",
+            "b'\\xdd\\xac\\x97\\xb0\\x99\\x96\\xb1\\xb5'",
+            "b'\\xf1\\x9b\\xf5\\xfa\\x8e\\xe1\\xc1\\xaa'",
+            "b'\\xff\\xae\\xce\\xab\\x9b\\xf0\\xc1\\x9b'"
+          ],
+          "status": "observed",
           "tool": "lief"
         },
         "rizin": {
-          "install_hint": "install rizin or radare2",
-          "status": "unavailable",
-          "tool": "rizin/radare2"
+          "function_count": 18,
+          "functions_sample": [
+            "entry0",
+            "fcn.14000149e",
+            "fcn.1400016c0",
+            "fcn.1400016f0",
+            "fcn.140001770",
+            "fcn.140001840",
+            "fcn.140001a70",
+            "fcn.140001b20",
+            "fcn.140001b94",
+            "fcn.140001bb0",
+            "fcn.140001c70",
+            "fcn.140001d00",
+            "fcn.140002100",
+            "fcn.140002140",
+            "fcn.1400021c0",
+            "fcn.1400027a0",
+            "fcn.140002950",
+            "section._5368713216"
+          ],
+          "status": "observed",
+          "tool": "r2"
         }
       },
       "findings": [],
@@ -116,35 +208,93 @@
         "coff_symbol_count": 0,
         "coff_symbol_table_offset": 0,
         "coff_symbol_table_present": false,
+        "nonprintable_high_bit_section_names": 9,
         "printable_section_names": [],
-        "section_count": 4,
+        "section_count": 9,
+        "section_name_distinct_count": 9,
         "section_name_hex": [
-          "8193a5b700000000",
-          "8294a6b800000000",
-          "8395a7b900000000",
-          "8496a8ba00000000"
+          "ffaeceab9bf0c19b",
+          "ddac97b09996b1b5",
+          "bfb7bcbbc9f1a5f3",
+          "db94e2f0d8cbc9ef",
+          "a1e5e38baaf8e9c8",
+          "a7dbc3d08888ffc5",
+          "c6fbd38acad8f3d0",
+          "d19e9cfac8b3fadf",
+          "f19bf5fa8ee1c1aa"
         ],
         "standard_section_names": [],
         "standard_section_string_hits": [],
-        "status": "observed"
+        "status": "observed",
+        "zero_padded_section_names": 0
       },
       "pe_observations": {
         "export_directory_present": false,
-        "import_count": 1,
+        "import_count": 4,
+        "import_directory_present": true,
         "import_dlls": [
           "KERNEL32.dll"
+        ],
+        "imports": [
+          {
+            "dll": "KERNEL32.dll",
+            "name": "ExitProcess"
+          },
+          {
+            "dll": "KERNEL32.dll",
+            "name": "GetStdHandle"
+          },
+          {
+            "dll": "KERNEL32.dll",
+            "name": "ReadFile"
+          },
+          {
+            "dll": "KERNEL32.dll",
+            "name": "WriteFile"
+          }
         ],
         "note": "PE headers and CRT TLS/import directories are mandatory container/runtime observations; avoidable product markers are reported as findings.",
         "status": "observed",
         "tls_directory_present": false,
         "tool": "objdump"
+      },
+      "pe_printable_string_section_observations": {
+        "executable_section_strings": 80,
+        "non_executable_section_strings": 18,
+        "raw_values_recorded": false,
+        "total": 98,
+        "unknown_section_strings": 0
+      },
+      "platform_findings": [],
+      "printable_string_observations": {
+        "count": 98,
+        "max_length": 12,
+        "policy": "forbidden patterns fail the gate; residual printable byte runs are tracked without writing raw strings",
+        "raw_values_recorded": false,
+        "sha256": "02c77722b694ba401506d071a8248c334e2464caaf538cb9fcb49e1c2bacca0c"
       }
     }
   ],
   "schema": "vmp.qa.surface_minimization.v1",
   "status": "pass",
   "syscall_policy": {
-    "note": "The project does not add generic direct-syscall bypass stubs. Platform system access remains inside approved adapters or fixed runtime APIs under docs/SECURITY_POLICY.md.",
-    "status": "not_implemented_for_evasion"
+    "allowed_direct_syscall_scope": "fixed_linux_x86_64_exit_for_crt_free_release_runner_only",
+    "api_call_minimization": {
+      "crt_linkage_removed": true,
+      "stdout_stdin_handles_cached": true,
+      "writefile_calls_batched": true
+    },
+    "generic_syscall_resolver_allowed": false,
+    "note": "The project does not add generic direct-syscall bypass stubs. Platform adapters prefer self-contained code, and platform system access remains inside approved adapters or fixed runtime APIs under docs/SECURITY_POLICY.md.",
+    "status": "not_implemented_for_evasion",
+    "windows_console_api_floor": [
+      "ExitProcess",
+      "GetStdHandle",
+      "ReadFile",
+      "WriteFile"
+    ],
+    "windows_direct_syscalls_enabled": false,
+    "windows_release_io_policy": "minimal_fixed_kernel32_console_api_for_visible_demo",
+    "windows_syscall_only_release_gate": "not_enabled_policy_boundary"
   }
 }

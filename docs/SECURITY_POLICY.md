@@ -38,13 +38,22 @@ They must not:
 
 The project does not implement generic direct-syscall bypass stubs or system
 call number harvesting for evasion. Platform system access must stay inside the
-approved platform adapters or fixed runtime APIs. Release QA may minimize and
-measure import/export exposure, but it must not replace ordinary platform
-contracts with syscall paths whose purpose is to bypass security monitoring.
+approved platform adapters or fixed runtime APIs. Platform adapters must prefer
+self-contained arithmetic/probe code and must avoid libc, WinAPI, `dlopen` /
+`dlsym`, import-resolver, or syscall paths unless the platform loader contract
+requires that boundary. Release QA may minimize and measure import/export
+exposure, but it must not replace ordinary platform contracts with syscall paths
+whose purpose is to bypass security monitoring.
 The minimal Linux release runner may use the fixed x86_64 `exit` syscall only as
 its CRT-free process termination path. This is not a generic syscall resolver,
 does not harvest syscall numbers, and must not be expanded into a platform API
 bypass layer.
+The Windows visible release must remain runnable as a console demonstration. Its
+accepted release gate may keep the fixed Kernel32 console API floor required for
+process exit, stdout writes, stdin reads, and three explicit `getchar()` pauses,
+but the implementation must remove CRT linkage, cache standard handles, batch
+console writes, and report that direct Windows syscalls and syscall-number
+harvesting are not enabled.
 
 ## Credential Handling
 

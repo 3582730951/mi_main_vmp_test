@@ -70,6 +70,6 @@ bash tests/platform/run_all_local.sh
 python3 tests/platform/hostile_environment_report.py
 python3 scripts/audit/capability_matrix.py
 
-python3 scripts/audit/acceptance_audit.py --runs 3 --tests
 restore_external_audit_reports
+python3 scripts/audit/acceptance_audit.py --runs 3 --tests
 printf '%s\n' 'local acceptance passed; final sign-off also requires ./final_acceptance.sh'

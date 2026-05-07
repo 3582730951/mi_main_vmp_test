@@ -1,0 +1,882 @@
+{
+  "blockers_and_limits": [
+    "final_signoff_allowed=false in capability matrix",
+    "placeholder_noop_stages=[]",
+    "accepted Windows release does not enable syscall-only I/O; direct Windows syscall stubs remain outside the release gate by policy",
+    "full broad LLVM IR virtualization is not proven; unsupported functions remain native by policy",
+    "IDA plugin recovery remains a real residual risk until flattening, production crypto, and broader binary-level anti-decompiler validation are implemented."
+  ],
+  "capabilities": [
+    {
+      "evidence": {
+        "bytecode_global_definitions": 59,
+        "implemented_stages": [
+          "vmp-config-load",
+          "vmp-function-marker",
+          "vmp-hotspot-policy",
+          "vmp-ir-normalize",
+          "vmp-block-split",
+          "vmp-flatten",
+          "vmp-bogus-branch",
+          "vmp-instruction-substitution",
+          "vmp-const-string-encryption",
+          "vmp-ir-to-bytecode",
+          "vmp-opcode-randomize",
+          "vmp-bytecode-encrypt",
+          "vmp-nesting",
+          "vmp-anti-analysis-hooks",
+          "vmp-function-replacement"
+        ],
+        "plugin_report": {
+          "lowered": 58,
+          "replaced": 58,
+          "selected": 75,
+          "stages": 16,
+          "unsupported": 17
+        },
+        "replaced_metadata_markers": 58,
+        "stage_pipeline": {
+          "executed_count": 16,
+          "implemented_count": 15,
+          "placeholder_noop_count": 0,
+          "report_only_count": 1
+        }
+      },
+      "evidence_paths": [
+        "tests/core/.llvm-out/plugin.log",
+        "tests/core/.llvm-out/sample.protected.ll",
+        "tests/core/.llvm-out/vmp-stage-manifest.json",
+        "src/core/llvm/VMPPassPlugin.cpp"
+      ],
+      "limitations": [
+        "placeholder_noop_stages=[]",
+        "Unsupported IR shapes are intentionally left native instead of pretending they were virtualized."
+      ],
+      "name": "vm_bytecode_lowering_and_function_replacement",
+      "status": "partial"
+    },
+    {
+      "evidence": {
+        "analysis": {
+          "defense_floor_preserved": true,
+          "direct_protected_xrefs_removed": true,
+          "high_frequency_policy_applied": true,
+          "per_callsite_thunks_preserved": true,
+          "protected_xrefs_discovered": true
+        },
+        "direct_secret_hot_call_present_after_protection": false,
+        "protected_thunk_call_edges": 3,
+        "rewritten_calls": 3,
+        "unique_thunks": 3
+      },
+      "evidence_paths": [
+        "docs/qa/reports/protected-callgraph.json",
+        "tests/core/.llvm-out/hotspot-callsite.protected.ll"
+      ],
+      "limitations": [
+        "The automated proof is IR-level and report-level; binary-level manual review remains a separate evidence source."
+      ],
+      "name": "protected_xref_and_callgraph_distortion",
+      "status": "demonstrated"
+    },
+    {
+      "evidence": {
+        "anti_analysis_policy_metadata_present": true,
+        "ida_ollydbg_review_status": "pass",
+        "ida_plugin_recovery_residual_risk": true,
+        "ir_decompiler_trap_label_present": true,
+        "ir_opaque_switch_trap_present": true,
+        "reviewed_indicators": {
+          "debugger_or_breakpoint_behavior": true,
+          "f5_or_decompiler_distortion": true,
+          "string_reference_distortion": true,
+          "xref_or_callgraph_distortion": true
+        }
+      },
+      "evidence_paths": [
+        "tests/core/.llvm-out/hotspot-callsite.protected.ll",
+        "docs/qa/reports/ida-ollydbg-review.json"
+      ],
+      "limitations": [
+        "Current traps raise reverse cost but are not enough to claim resilience against stronger IDA plugin automation."
+      ],
+      "name": "anti_decompiler_trap_and_f5_distortion",
+      "status": "partial"
+    },
+    {
+      "evidence": {
+        "artifact_scans": [
+          {
+            "bytes": 16384,
+            "exists": true,
+            "forbidden_plaintext_hits": [],
+            "path": "artifacts/protected/linux/protected_release_sample",
+            "printable_string_count": 0,
+            "residual_printable_strings": [],
+            "sha256": "178bf026d14cb97a49c2c3ffd76690667424643f33821e0c6967c7dd1d96f56a"
+          },
+          {
+            "bytes": 149,
+            "exists": true,
+            "forbidden_plaintext_hits": [],
+            "path": "samples/protected_chain/out/protected_sample.vmp",
+            "printable_string_count": 0,
+            "residual_printable_strings": [],
+            "sha256": "e824ef95748370188b1d4e3763ef928cb63e254609d3436be160c285e04eb513"
+          },
+          {
+            "bytes": 17920,
+            "exists": true,
+            "forbidden_plaintext_hits": [],
+            "path": "build/windows-protected-cross/protected_release_sample.exe",
+            "printable_string_count": 98,
+            "residual_printable_strings": [
+              "AWAVAUATWVSH",
+              "d$0A",
+              "L$XE1",
+              "D$ H",
+              "D$(H",
+              "D$ H",
+              "T$(H1",
+              "[^_A\\A]A^A_]",
+              "L$<H",
+              "ATWVS1",
+              "t$ H",
+              "T$@I",
+              "[^_A\\]",
+              "AWAVAUATWH",
+              "L$XI",
+              "#VtL1",
+              "D$XH",
+              "} E1",
+              "D$HL",
+              "d$`H",
+              "L$HM)",
+              "D$ H",
+              "D$8L",
+              "L$@H",
+              "D$8f",
+              "D$XL",
+              "D$XM9",
+              "H9Z ",
+              "[^_A\\A]A^A_]",
+              "@ H3B",
+              "([^_]",
+              "?[^I1",
+              "D$(H",
+              "dg.>H",
+              " [^_]A\\",
+              "AVAUATWVH",
+              "[^_A\\A]A^A_]",
+              "t$0H",
+              "|$(1",
+              "|$(H",
+              "l$8H",
+              "H3C L",
+              "d$@L",
+              "D$ L",
+              "D$ H9",
+              "D$(1",
+              "D$(D",
+              "F L1",
+              "D$(L",
+              "T$(A",
+              "AWAVAUATWVSH",
+              "D$8L",
+              "Q L3Q",
+              "#VtL3Q",
+              "L$4H",
+              "D$(L",
+              "\\$@D",
+              "t$XH",
+              "\\$PL",
+              "|$HH",
+              "t$xH",
+              "\\$pH",
+              "|$hH",
+              "\\$`L",
+              "L$XL",
+              "D$xH",
+              "L$PH",
+              "L$HL",
+              "L$@L",
+              "D$hH",
+              "L$XL",
+              "L$PL",
+              "L$HH",
+              "L$4fD",
+              "D$(f",
+              "H9D$8",
+              "[^_A\\A]A^A_]",
+              "T$;L",
+              "L$<H",
+              "D$;H"
+            ],
+            "sha256": "0525a8e71d39f7768905faf6b6255fa403f0bfd6087ad17129e8abc78fdef91f"
+          },
+          {
+            "bytes": 16896,
+            "exists": true,
+            "forbidden_plaintext_hits": [],
+            "path": "build/windows-visible-demo/protected_visible_demo.exe",
+            "printable_string_count": 98,
+            "residual_printable_strings": [
+              "AWAVAUATWVSH",
+              "d$0A",
+              "L$XE1",
+              "D$ H",
+              "D$(H",
+              "D$ H",
+              "T$(H1",
+              "[^_A\\A]A^A_]",
+              "L$<H",
+              "ATWVS1",
+              "t$ H",
+              "T$@I",
+              "[^_A\\]",
+              "AWAVAUATWH",
+              "L$XI",
+              "#VtL1",
+              "D$XH",
+              "} E1",
+              "D$HL",
+              "d$`H",
+              "L$HM)",
+              "D$ H",
+              "D$8L",
+              "L$@H",
+              "D$8f",
+              "D$XL",
+              "D$XM9",
+              "H9Z ",
+              "[^_A\\A]A^A_]",
+              "@ H3B",
+              "([^_]",
+              "?[^I1",
+              "D$(H",
+              "dg.>H",
+              " [^_]A\\",
+              "AVAUATWVH",
+              "[^_A\\A]A^A_]",
+              "t$0H",
+              "|$(1",
+              "|$(H",
+              "l$8H",
+              "H3C L",
+              "d$@L",
+              "D$ L",
+              "D$ H9",
+              "D$(1",
+              "D$(D",
+              "F L1",
+              "D$(L",
+              "T$(A",
+              "AWAVAUATWVSH",
+              "D$8L",
+              "Q L3Q",
+              "#VtL3Q",
+              "L$4H",
+              "D$(L",
+              "\\$@D",
+              "t$XH",
+              "\\$PL",
+              "|$HH",
+              "t$xH",
+              "\\$pH",
+              "|$hH",
+              "\\$`L",
+              "L$XL",
+              "D$xH",
+              "L$PH",
+              "L$HL",
+              "L$@L",
+              "D$hH",
+              "L$XL",
+              "L$PL",
+              "L$HH",
+              "L$4fD",
+              "D$(f",
+              "H9D$8",
+              "[^_A\\A]A^A_]",
+              "T$;L",
+              "L$<H",
+              "D$;H"
+            ],
+            "sha256": "fb2b4fee155024692ebf7c1733880fcbda46a1143788ae24591e411b6302b9dc"
+          }
+        ],
+        "generic_llvm_const_string_encryption_implemented": true,
+        "strict_artifacts_forbidden_plaintext_absent": true,
+        "strict_artifacts_zero_printable_strings": true,
+        "visible_demo_forbidden_plaintext_absent": true,
+        "visible_demo_string_encryption_reported": true,
+        "windows_release_visible_demo_strings_protected": true
+      },
+      "evidence_paths": [
+        "samples/protected_chain/out/strings.json",
+        "build/windows-visible-demo/protected_visible_demo.strings.txt",
+        "docs/qa/reports/windows-visible-demo-cross-build.json",
+        "tests/core/.llvm-out/vmp-stage-manifest.json"
+      ],
+      "limitations": [
+        "Generic LLVM const-string encryption is implemented for private/internal constant byte arrays.",
+        "The Windows visible demo uses generated per-build encrypted text; strict release artifacts use zero-printable-string policy."
+      ],
+      "name": "string_plaintext_hiding",
+      "status": "partial"
+    },
+    {
+      "evidence": {
+        "visible_demo_dynamic_string_protection": {
+          "chunk_plaintext_wiped_after_use": true,
+          "chunked_runtime_decode": true,
+          "ciphertext_generated_per_build": true,
+          "full_plaintext_string_buffer": false,
+          "max_plaintext_chunk_bytes": 20,
+          "mode": "per_build_stream_cipher_chunked_runtime_decode",
+          "per_call_stateful_chunk_schedule": true,
+          "two_pass_plaintext_tag_validation": true
+        },
+        "visible_demo_forbidden_plaintext_absent": true,
+        "windows_release_demo_strings_protected": true,
+        "windows_release_dynamic_string_protection": {
+          "chunk_plaintext_wiped_after_use": true,
+          "chunked_runtime_decode": true,
+          "ciphertext_generated_per_build": true,
+          "full_plaintext_string_buffer": false,
+          "max_plaintext_chunk_bytes": 20,
+          "mode": "per_build_stream_cipher_chunked_runtime_decode",
+          "per_call_stateful_chunk_schedule": true,
+          "two_pass_plaintext_tag_validation": true
+        }
+      },
+      "evidence_paths": [
+        "tools/vmp/protected_release_main.cpp",
+        "tests/platform/windows_visible_demo_cross_build.sh",
+        "docs/qa/reports/windows-visible-demo-cross-build.json",
+        "docs/qa/reports/windows-protected-cross-build.json"
+      ],
+      "limitations": [
+        "This protects generated visible-demo text at runtime; the LLVM const-string pass now covers private/internal constant byte arrays."
+      ],
+      "name": "dynamic_string_runtime_decryption",
+      "status": "demonstrated"
+    },
+    {
+      "evidence": {
+        "avoidable_surface_findings": 0,
+        "linux_elf_observations": {
+          "export_count": 0,
+          "export_names": [],
+          "import_count": 0,
+          "import_names": [],
+          "note": "ELF dynamic linker metadata is recorded separately from avoidable protected-surface markers.",
+          "status": "observed",
+          "tool": "readelf"
+        },
+        "surface_status": "pass",
+        "windows_pe_observations": {
+          "export_directory_present": false,
+          "import_count": 4,
+          "import_directory_present": true,
+          "import_dlls": [
+            "KERNEL32.dll"
+          ],
+          "imports": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess"
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetStdHandle"
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ReadFile"
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "WriteFile"
+            }
+          ],
+          "note": "PE headers and CRT TLS/import directories are mandatory container/runtime observations; avoidable product markers are reported as findings.",
+          "status": "observed",
+          "tls_directory_present": false,
+          "tool": "objdump"
+        }
+      },
+      "evidence_paths": [
+        "docs/qa/reports/surface-minimization.json",
+        "docs/qa/reports/windows-protected-cross-build.json",
+        "tools/vmp/protected_release_main.cpp"
+      ],
+      "limitations": [
+        "The Windows release artifact is now the encrypted visible console demo, so fixed Kernel32 console imports are expected."
+      ],
+      "name": "strict_import_export_tls_surface_minimization",
+      "status": "demonstrated"
+    },
+    {
+      "evidence": {
+        "surface_syscall_policy": {
+          "allowed_direct_syscall_scope": "fixed_linux_x86_64_exit_for_crt_free_release_runner_only",
+          "api_call_minimization": {
+            "crt_linkage_removed": true,
+            "stdout_stdin_handles_cached": true,
+            "writefile_calls_batched": true
+          },
+          "generic_syscall_resolver_allowed": false,
+          "note": "The project does not add generic direct-syscall bypass stubs. Platform adapters prefer self-contained code, and platform system access remains inside approved adapters or fixed runtime APIs under docs/SECURITY_POLICY.md.",
+          "status": "not_implemented_for_evasion",
+          "windows_console_api_floor": [
+            "ExitProcess",
+            "GetStdHandle",
+            "ReadFile",
+            "WriteFile"
+          ],
+          "windows_direct_syscalls_enabled": false,
+          "windows_release_io_policy": "minimal_fixed_kernel32_console_api_for_visible_demo",
+          "windows_syscall_only_release_gate": "not_enabled_policy_boundary"
+        },
+        "windows_console_api_policy": {
+          "direct_windows_syscalls_enabled": false,
+          "fixed_imports": [
+            "ExitProcess",
+            "GetStdHandle",
+            "ReadFile",
+            "WriteFile"
+          ],
+          "generic_syscall_resolver_allowed": false,
+          "mode": "minimal_fixed_kernel32_console_api",
+          "reason": "The visible release must print and pause reliably; syscall-only Windows I/O is kept out of the accepted release gate under docs/SECURITY_POLICY.md.",
+          "stdin_handle_cached": true,
+          "stdout_handle_cached": true,
+          "writefile_calls_batched": true
+        },
+        "windows_pe_observations": {
+          "export_directory_present": false,
+          "import_count": 4,
+          "import_directory_present": true,
+          "import_dlls": [
+            "KERNEL32.dll"
+          ],
+          "imports": [
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ExitProcess"
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "GetStdHandle"
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "ReadFile"
+            },
+            {
+              "dll": "KERNEL32.dll",
+              "name": "WriteFile"
+            }
+          ],
+          "note": "PE headers and CRT TLS/import directories are mandatory container/runtime observations; avoidable product markers are reported as findings.",
+          "status": "observed",
+          "tls_directory_present": false,
+          "tool": "objdump"
+        }
+      },
+      "evidence_paths": [
+        "docs/SECURITY_POLICY.md",
+        "docs/qa/reports/surface-minimization.json",
+        "docs/qa/reports/windows-protected-cross-build.json"
+      ],
+      "limitations": [
+        "The accepted Windows visible release minimizes and batches fixed console API use; it does not enable direct Windows syscall stubs or syscall-number harvesting."
+      ],
+      "name": "windows_api_call_minimization_policy",
+      "status": "demonstrated"
+    },
+    {
+      "evidence": {
+        "pe_metadata_observations": {
+          "coff_symbol_count": 0,
+          "coff_symbol_table_offset": 0,
+          "coff_symbol_table_present": false,
+          "nonprintable_high_bit_section_names": 9,
+          "printable_section_names": [],
+          "section_count": 9,
+          "section_name_distinct_count": 9,
+          "section_name_hex": [
+            "ffaeceab9bf0c19b",
+            "ddac97b09996b1b5",
+            "bfb7bcbbc9f1a5f3",
+            "db94e2f0d8cbc9ef",
+            "a1e5e38baaf8e9c8",
+            "a7dbc3d08888ffc5",
+            "c6fbd38acad8f3d0",
+            "d19e9cfac8b3fadf",
+            "f19bf5fa8ee1c1aa"
+          ],
+          "standard_section_names": [],
+          "standard_section_string_hits": [],
+          "status": "observed",
+          "zero_padded_section_names": 0
+        },
+        "visible_demo_decoy_sections": {
+          "artifact": "build/windows-visible-demo/protected_visible_demo.exe",
+          "decoy_section_count": 2,
+          "final_section_count": 7,
+          "generated_at_utc": "2026-05-07T12:39:41.302552Z",
+          "original_section_count": 5,
+          "schema": "vmp.pe.decoy_sections.v1",
+          "sections": [
+            {
+              "index": 5,
+              "payload_sha256": "43e2e6e1807c1e88ba6a9aef942b746d89e383e6d94a5052a71613c470173fad",
+              "raw_pointer": 15872,
+              "raw_size": 512,
+              "temporary_name_hex": "d0c38eabceba91f2",
+              "virtual_address": 32768,
+              "virtual_size": 280
+            },
+            {
+              "index": 6,
+              "payload_sha256": "9b8b58fe40be717da18e0a8d9dcf68719f2f6f52878e686a8a17116923d218ce",
+              "raw_pointer": 16384,
+              "raw_size": 512,
+              "temporary_name_hex": "aae7ac96c0ade4de",
+              "virtual_address": 36864,
+              "virtual_size": 504
+            }
+          ],
+          "seed_fingerprint": "d51c7dbc59f4f694"
+        },
+        "visible_demo_section_name_hex": [
+          "99c8c9f682f7d8d1",
+          "b3aade94bde3fbb4",
+          "dcb5e1c2eda8eea4",
+          "fe94c3b3f3eea6dc",
+          "badac4e2e79498f2",
+          "f59b99aee0c9e0d4",
+          "8fa5ebc3b6d3ea91"
+        ],
+        "visible_demo_section_name_seed_fingerprint": "0f6146fc63d71446",
+        "visible_demo_section_names_randomized": true,
+        "windows_release_decoy_sections": {
+          "artifact": "build/windows-protected-cross/protected_visible_demo.exe",
+          "decoy_section_count": 4,
+          "final_section_count": 9,
+          "generated_at_utc": "2026-05-07T12:37:54.706477Z",
+          "original_section_count": 5,
+          "schema": "vmp.pe.decoy_sections.v1",
+          "sections": [
+            {
+              "index": 5,
+              "payload_sha256": "4e21063298d430057c7462e1e0251ddc403820b4bf37cd2447caf926c2daf916",
+              "raw_pointer": 15872,
+              "raw_size": 512,
+              "temporary_name_hex": "d1fb819181dda5f6",
+              "virtual_address": 32768,
+              "virtual_size": 332
+            },
+            {
+              "index": 6,
+              "payload_sha256": "9ddd4cf89b7c8f1be2f710c9010b7377caeac4e7ac57c9a22f31f051e0ed2f23",
+              "raw_pointer": 16384,
+              "raw_size": 512,
+              "temporary_name_hex": "95afd5cacda38ecd",
+              "virtual_address": 36864,
+              "virtual_size": 146
+            },
+            {
+              "index": 7,
+              "payload_sha256": "29b0059f0cf22046a2fba5cbfac4af273c99c2ff3ccd4aeaec5d174747da5fdd",
+              "raw_pointer": 16896,
+              "raw_size": 512,
+              "temporary_name_hex": "e6c9f289f5d9e9be",
+              "virtual_address": 40960,
+              "virtual_size": 482
+            },
+            {
+              "index": 8,
+              "payload_sha256": "cddccdaa6b1ff5a1902b5170c5c398fa68a18ecceaadca0b063032e2940290f9",
+              "raw_pointer": 17408,
+              "raw_size": 512,
+              "temporary_name_hex": "e981bd8386eea8f8",
+              "virtual_address": 45056,
+              "virtual_size": 242
+            }
+          ],
+          "seed_fingerprint": "edb3e3637a33c95c"
+        },
+        "windows_release_section_name_hex": [
+          "ffaeceab9bf0c19b",
+          "ddac97b09996b1b5",
+          "bfb7bcbbc9f1a5f3",
+          "db94e2f0d8cbc9ef",
+          "a1e5e38baaf8e9c8",
+          "a7dbc3d08888ffc5",
+          "c6fbd38acad8f3d0",
+          "d19e9cfac8b3fadf",
+          "f19bf5fa8ee1c1aa"
+        ],
+        "windows_release_section_name_seed_fingerprint": "f40c8accf224ed34",
+        "windows_release_section_names_randomized": true
+      },
+      "evidence_paths": [
+        "scripts/audit/scrub_pe_section_names.py",
+        "docs/qa/reports/windows-protected-cross-build.json",
+        "docs/qa/reports/windows-visible-demo-cross-build.json"
+      ],
+      "limitations": [
+        "This prevents fixed section-name scripts from keying on stable names, but it does not randomize the whole PE layout."
+      ],
+      "name": "pe_section_name_randomization",
+      "status": "demonstrated"
+    },
+    {
+      "evidence": {
+        "artifact_bytes": 16896,
+        "embedded_sample_bytes": 133,
+        "forbidden_plaintext_hits": [],
+        "printable_string_count": 98,
+        "report_status": "pass",
+        "residual_printable_strings": [
+          "AWAVAUATWVSH",
+          "d$0A",
+          "L$XE1",
+          "D$ H",
+          "D$(H",
+          "D$ H",
+          "T$(H1",
+          "[^_A\\A]A^A_]",
+          "L$<H",
+          "ATWVS1",
+          "t$ H",
+          "T$@I",
+          "[^_A\\]",
+          "AWAVAUATWH",
+          "L$XI",
+          "#VtL1",
+          "D$XH",
+          "} E1",
+          "D$HL",
+          "d$`H",
+          "L$HM)",
+          "D$ H",
+          "D$8L",
+          "L$@H",
+          "D$8f",
+          "D$XL",
+          "D$XM9",
+          "H9Z ",
+          "[^_A\\A]A^A_]",
+          "@ H3B",
+          "([^_]",
+          "?[^I1",
+          "D$(H",
+          "dg.>H",
+          " [^_]A\\",
+          "AVAUATWVH",
+          "[^_A\\A]A^A_]",
+          "t$0H",
+          "|$(1",
+          "|$(H",
+          "l$8H",
+          "H3C L",
+          "d$@L",
+          "D$ L",
+          "D$ H9",
+          "D$(1",
+          "D$(D",
+          "F L1",
+          "D$(L",
+          "T$(A",
+          "AWAVAUATWVSH",
+          "D$8L",
+          "Q L3Q",
+          "#VtL3Q",
+          "L$4H",
+          "D$(L",
+          "\\$@D",
+          "t$XH",
+          "\\$PL",
+          "|$HH",
+          "t$xH",
+          "\\$pH",
+          "|$hH",
+          "\\$`L",
+          "L$XL",
+          "D$xH",
+          "L$PH",
+          "L$HL",
+          "L$@L",
+          "D$hH",
+          "L$XL",
+          "L$PL",
+          "L$HH",
+          "L$4fD",
+          "D$(f",
+          "H9D$8",
+          "[^_A\\A]A^A_]",
+          "T$;L",
+          "L$<H",
+          "D$;H"
+        ],
+        "windows_getchar_calls": 3,
+        "wine_execution_status": "skipped"
+      },
+      "evidence_paths": [
+        "tests/platform/windows_visible_demo_cross_build.sh",
+        "build/windows-visible-demo/protected_visible_demo.exe",
+        "docs/qa/reports/windows-visible-demo-cross-build.json"
+      ],
+      "limitations": [
+        "Wine execution is optional in this Linux environment; if unavailable, the evidence is cross-build plus static PE scan."
+      ],
+      "name": "windows_visible_protected_demo",
+      "status": "demonstrated"
+    },
+    {
+      "evidence": {
+        "artifact_bytes": 16384,
+        "behavior_cases_passed": 4,
+        "forbidden_plaintext_hits": [],
+        "release_status": "pass"
+      },
+      "evidence_paths": [
+        "docs/qa/reports/release-protected-binary.json",
+        "tests/integration/run_release_protected_binary.sh"
+      ],
+      "limitations": [
+        "The local release runner validates the protected sample behavior, not arbitrary application workloads."
+      ],
+      "name": "runtime_stability",
+      "status": "demonstrated"
+    },
+    {
+      "evidence": {
+        "assessed_capabilities": {
+          "automatic_hotspot_analysis": true,
+          "callsite_obfuscation": true,
+          "decompiler_traps": true,
+          "defense_floor_preserved": true,
+          "high_frequency_callsite_optimization": true,
+          "per_callsite_thunks": true,
+          "protected_function_address_not_materialized": true,
+          "protected_xref_discovery": true,
+          "randomized_stack_backtrace": true
+        },
+        "minimum_reverse_cost_days": 570,
+        "score_breakdown": {
+          "angr_cfgfast_callgraph_inventory": 25,
+          "callsite_graph_distortion": 85,
+          "decompiler_trap_distortion": 45,
+          "external_callgraph_consensus": 25,
+          "hot_callsite_speed_policy": 35,
+          "hotspot_policy_and_defense_floor": 55,
+          "lief_format_surface_review": 25,
+          "plaintext_secret_absence": 45,
+          "protected_address_hiding": 45,
+          "protected_xref_discovery": 35,
+          "radare2_callgraph_inventory": 25,
+          "randomized_backtrace_signal": 45,
+          "symbol_recovery_resistance": 45,
+          "syscall_api_surface_minimization": 35
+        },
+        "status": "pass"
+      },
+      "evidence_paths": [
+        "docs/qa/reports/reverse-cost-assessment.json",
+        "scripts/audit/generate_reverse_cost_assessment.py"
+      ],
+      "limitations": [
+        "Automated reverse-cost scoring is repeatable evidence, not a substitute for a human red-team guarantee."
+      ],
+      "name": "reverse_cost_automation",
+      "status": "demonstrated"
+    },
+    {
+      "evidence": {
+        "hostile_environment_status": "pass",
+        "hostile_trigger_scope": "linux_windows_android",
+        "vmprotect_tier_capabilities": {
+          "anti_debug": true,
+          "anti_injection": true,
+          "anti_tamper": true,
+          "code_virtualization": true,
+          "combined_protection": true,
+          "import_hiding": true,
+          "mutation_obfuscation": true,
+          "string_hiding": true
+        },
+        "vmprotect_tier_review_status": "pass"
+      },
+      "evidence_paths": [
+        "docs/qa/reports/hostile-environment.json",
+        "docs/qa/reports/vmprotect-tier-review.json"
+      ],
+      "limitations": [
+        "Hostile trigger and VMProtect-tier review files are provenance-sensitive; local-only reproduction must not be called final sign-off."
+      ],
+      "name": "anti_debug_injection_tamper_review_scope",
+      "status": "reviewed"
+    }
+  ],
+  "generated_at_utc": "2026-05-07T18:03:17.771634Z",
+  "root": "/workspace",
+  "schema": "vmp.qa.protection_capability_showcase.v1",
+  "stage_manifest": {
+    "capability_effects": [
+      "anti_analysis.decompiler_traps",
+      "anti_analysis.random_stack_backtrace_policy",
+      "callsite_obfuscation.indirect_thunks",
+      "callsite_obfuscation.per_callsite_thunks",
+      "code_virtualization.bytecode_lowering",
+      "code_virtualization.integrated_payload_sealing",
+      "code_virtualization.opcode_map_randomization",
+      "code_virtualization.runtime_replacement",
+      "code_virtualization.vm_level_policy_encoding",
+      "ir_normalization.canonical_integer_forms",
+      "mutation_obfuscation.local_transform",
+      "mutation_obfuscation.opt_in_switch_flattening",
+      "performance.hotspot_static_policy",
+      "string_hiding.private_const_string_ctor_decode"
+    ],
+    "exists": true,
+    "generic_const_string_encryption_implemented": true,
+    "implemented_stages": [
+      "vmp-config-load",
+      "vmp-function-marker",
+      "vmp-hotspot-policy",
+      "vmp-ir-normalize",
+      "vmp-block-split",
+      "vmp-flatten",
+      "vmp-bogus-branch",
+      "vmp-instruction-substitution",
+      "vmp-const-string-encryption",
+      "vmp-ir-to-bytecode",
+      "vmp-opcode-randomize",
+      "vmp-bytecode-encrypt",
+      "vmp-nesting",
+      "vmp-anti-analysis-hooks",
+      "vmp-function-replacement"
+    ],
+    "path": "tests/core/.llvm-out/vmp-stage-manifest.json",
+    "pipeline": {
+      "executed_count": 16,
+      "implemented_count": 15,
+      "placeholder_noop_count": 0,
+      "report_only_count": 1
+    },
+    "placeholder_noop_stages": [],
+    "schema": "vmp.llvm.stage_manifest.v1",
+    "sha256": "78a5c9c592d7ace99c912b89e53be99e72279185136af8b4c9d84aaa6528dbd2"
+  },
+  "status": "evidence_available",
+  "summary": {
+    "current_project_capability": "The project demonstrates local VM bytecode lowering/replacement, protected-callsite thunking, xref removal, decompiler-trap markers, strict release string/import minimization, a hardened Windows visible demo, and automated reverse-cost evidence.",
+    "final_signoff_allowed": false,
+    "not_claimed": "This report does not claim complete VMProtect-tier commercial coverage for arbitrary programs."
+  }
+}

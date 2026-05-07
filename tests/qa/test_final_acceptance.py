@@ -24,6 +24,9 @@ class FinalAcceptanceTests(unittest.TestCase):
         reverse_cost = root / "scripts/audit/reverse_cost_gate.py"
         reverse_cost.write_text("#!/usr/bin/env python3\nimport sys\nsys.exit(0)\n", encoding="utf-8")
         os.chmod(reverse_cost, 0o755)
+        objective_completion = root / "scripts/audit/objective_completion_audit.py"
+        objective_completion.write_text("#!/usr/bin/env python3\nimport sys\nsys.exit(0)\n", encoding="utf-8")
+        os.chmod(objective_completion, 0o755)
         finalize = root / "scripts/audit/finalize_external_evidence.py"
         finalize.write_text("#!/usr/bin/env python3\nimport sys\nsys.exit(0)\n", encoding="utf-8")
         os.chmod(finalize, 0o755)
@@ -71,6 +74,63 @@ class FinalAcceptanceTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertFalse(report.exists())
+        finally:
+            shutil.rmtree(root)
+
+    def test_acceptance_runs_with_preserved_external_reports(self):
+        root = self.make_repo(textwrap.dedent("""\
+            #!/usr/bin/env sh
+            set -eu
+            test -f docs/qa/reports/capability-matrix.json
+        """))
+        report = root / "docs/qa/reports/capability-matrix.json"
+        report.parent.mkdir(parents=True)
+        report.write_text('{"status":"external"}\n', encoding="utf-8")
+        try:
+            result = self.run_final(root)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(report.read_text(encoding="utf-8"), '{"status":"external"}\n')
+        finally:
+            shutil.rmtree(root)
+
+    def test_restores_final_signoff_when_strict_audit_fails_after_finalize(self):
+        root = self.make_repo(textwrap.dedent("""\
+            #!/usr/bin/env sh
+            set -eu
+        """))
+        signoff = root / "docs/qa/FinalSignOff.md"
+        signoff.parent.mkdir(parents=True)
+        signoff.write_text("Status: **blocked**.\n", encoding="utf-8")
+        objective_report = root / "docs/qa/reports/objective-completion-audit.json"
+        objective_report.parent.mkdir(parents=True)
+        objective_report.write_text('{"status":"external"}\n', encoding="utf-8")
+        objective_completion = root / "scripts/audit/objective_completion_audit.py"
+        objective_completion.write_text(textwrap.dedent("""\
+            #!/usr/bin/env python3
+            from pathlib import Path
+            Path("docs/qa/reports").mkdir(parents=True, exist_ok=True)
+            Path("docs/qa/reports/objective-completion-audit.json").write_text('{"status":"local"}\\n', encoding="utf-8")
+        """), encoding="utf-8")
+        os.chmod(objective_completion, 0o755)
+        finalize = root / "scripts/audit/finalize_external_evidence.py"
+        finalize.write_text(textwrap.dedent("""\
+            #!/usr/bin/env python3
+            from pathlib import Path
+            Path("docs/qa").mkdir(parents=True, exist_ok=True)
+            Path("docs/qa/FinalSignOff.md").write_text("Status: **signed off**.\\n", encoding="utf-8")
+        """), encoding="utf-8")
+        os.chmod(finalize, 0o755)
+        audit = root / "scripts/audit/plan_completion_audit.py"
+        audit.write_text("#!/usr/bin/env python3\nimport sys\nsys.exit(17)\n", encoding="utf-8")
+        os.chmod(audit, 0o755)
+
+        try:
+            result = self.run_final(root)
+
+            self.assertEqual(result.returncode, 17)
+            self.assertEqual(signoff.read_text(encoding="utf-8"), "Status: **blocked**.\n")
+            self.assertEqual(objective_report.read_text(encoding="utf-8"), '{"status":"external"}\n')
         finally:
             shutil.rmtree(root)
 

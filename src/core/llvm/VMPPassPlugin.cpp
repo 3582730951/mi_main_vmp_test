@@ -20,13 +20,17 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils/Cloning.h"
+#include "llvm/Transforms/Utils/ModuleUtils.h"
 
+#include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdlib>
 #include <cstdint>
 #include <exception>
 #include <iomanip>
 #include <optional>
+#include <random>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -56,10 +60,10 @@ constexpr std::array<StringLiteral, 16> kPipelineStages = {
     "vmp-report",
 };
 
-constexpr StringLiteral kDefaultRuntimeSeed = "llvm-plugin-sample-seed-v1";
 constexpr std::uint64_t kRuntimePlatformSalt = 0x766d706c6c766d70ULL;
 constexpr std::uint32_t kDefaultRuntimeVmLevel = 2;
-constexpr StringLiteral kLoweringName = "ir-subset-i32-recursive-cfg-expr-bitwise-safe-dynshift-trunccast-stack-select-callhost-branch-phi-vm-runtime";
+constexpr StringLiteral kLoweringName =
+    "ir-subset-i32-i64-recursive-cfg-expr-bitwise-safe-dynshift-trunccast-stack-select-callhost-branch-phi-vm-runtime";
 constexpr StringLiteral kGeneratedBytecodeMarker = "llvm-plugin-generated-bytecode-v1";
 constexpr std::uint8_t kHostArgScratch0 = 14;
 constexpr std::uint8_t kHostArgScratch1 = 15;
@@ -89,7 +93,19 @@ const vmp::core::ProtectionConfig &activeConfig() {
             }
         }
         vmp::core::ProtectionConfig DefaultConfig;
-        DefaultConfig.seed = kDefaultRuntimeSeed.str();
+        if (const char *BuildSeed = std::getenv("VMP_BUILD_SEED")) {
+            if (BuildSeed[0] != '\0') {
+                DefaultConfig.seed = std::string("env-build:") + BuildSeed;
+            }
+        }
+        if (DefaultConfig.seed.empty()) {
+            std::random_device Random;
+            const auto Now = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+            std::ostringstream Seed;
+            Seed << "ephemeral-build:" << std::hex << static_cast<std::uint64_t>(Now) << ":"
+                 << static_cast<std::uint64_t>(Random()) << ":" << static_cast<std::uint64_t>(Random());
+            DefaultConfig.seed = Seed.str();
+        }
         DefaultConfig.vmLevel = kDefaultRuntimeVmLevel;
         return DefaultConfig;
     }();
@@ -162,7 +178,14 @@ StringRef stageKind(StringRef Name) {
     if (Name == "vmp-hotspot-policy") {
         return "analysis";
     }
-    if (Name == "vmp-block-split" || Name == "vmp-bogus-branch" || Name == "vmp-instruction-substitution") {
+    if (Name == "vmp-ir-normalize") {
+        return "normalize";
+    }
+    if (Name == "vmp-block-split" || Name == "vmp-flatten" || Name == "vmp-bogus-branch" ||
+        Name == "vmp-instruction-substitution") {
+        return "transform";
+    }
+    if (Name == "vmp-const-string-encryption") {
         return "transform";
     }
     if (Name == "vmp-anti-analysis-hooks") {
@@ -170,6 +193,9 @@ StringRef stageKind(StringRef Name) {
     }
     if (Name == "vmp-ir-to-bytecode") {
         return "lowering";
+    }
+    if (Name == "vmp-opcode-randomize" || Name == "vmp-bytecode-encrypt" || Name == "vmp-nesting") {
+        return "bytecode_prep";
     }
     if (Name == "vmp-function-replacement") {
         return "replacement";
@@ -349,6 +375,248 @@ bool splitProtectedBlocks(Module &M) {
     return !SplitPoints.empty();
 }
 
+bool functionRequestsFlattening(const Function &F) {
+    return F.hasFnAttribute("vmp.flatten") || F.getMetadata("vmp.flatten") != nullptr;
+}
+
+bool flattenOptInBranches(Module &M) {
+    bool Changed = false;
+    LLVMContext &Ctx = M.getContext();
+    auto *I32Ty = Type::getInt32Ty(Ctx);
+    for (Function &F : M) {
+        if (!isSelectedFunction(F) || !functionRequestsFlattening(F)) {
+            continue;
+        }
+
+        BranchInst *Branch = nullptr;
+        for (BasicBlock &BB : F) {
+            auto *Candidate = dyn_cast<BranchInst>(BB.getTerminator());
+            if (Candidate == nullptr || !Candidate->isConditional() ||
+                Candidate->getParent()->getName().startswith("vmp.flatten")) {
+                continue;
+            }
+            if (!Candidate->getSuccessor(0)->phis().empty() || !Candidate->getSuccessor(1)->phis().empty()) {
+                continue;
+            }
+            Branch = Candidate;
+            break;
+        }
+        if (Branch == nullptr) {
+            continue;
+        }
+
+        BasicBlock *Source = Branch->getParent();
+        BasicBlock *TrueTarget = Branch->getSuccessor(0);
+        BasicBlock *FalseTarget = Branch->getSuccessor(1);
+        IRBuilder<> StateBuilder(Branch);
+        Value *State = StateBuilder.CreateSelect(
+            Branch->getCondition(),
+            ConstantInt::get(I32Ty, 1),
+            ConstantInt::get(I32Ty, 2),
+            "vmp.flatten.state");
+
+        BasicBlock *Dispatch = BasicBlock::Create(Ctx, "vmp.flatten.dispatch", &F, TrueTarget);
+        BasicBlock *Trap = BasicBlock::Create(Ctx, "vmp.flatten.trap", &F, Dispatch);
+        Branch->eraseFromParent();
+
+        IRBuilder<> SourceBuilder(Source);
+        SourceBuilder.CreateBr(Dispatch);
+
+        IRBuilder<> DispatchBuilder(Dispatch);
+        auto *Switch = DispatchBuilder.CreateSwitch(State, Trap, 2);
+        Switch->addCase(ConstantInt::get(I32Ty, 1), TrueTarget);
+        Switch->addCase(ConstantInt::get(I32Ty, 2), FalseTarget);
+
+        IRBuilder<> TrapBuilder(Trap);
+        TrapBuilder.CreateUnreachable();
+        F.setMetadata("vmp.flattened", MDNode::get(Ctx, MDString::get(Ctx, "switch-dispatch")));
+        Changed = true;
+    }
+    return Changed;
+}
+
+bool normalizeProtectedIr(Module &M) {
+    unsigned Selected = 0;
+    unsigned SwappedComparisons = 0;
+    unsigned SwappedCommutativeOps = 0;
+    for (Function &F : M) {
+        if (!isSelectedFunction(F)) {
+            continue;
+        }
+        ++Selected;
+        for (BasicBlock &BB : F) {
+            for (Instruction &I : BB) {
+                if (auto *Cmp = dyn_cast<ICmpInst>(&I)) {
+                    if (isa<ConstantInt>(Cmp->getOperand(0)) && !isa<ConstantInt>(Cmp->getOperand(1))) {
+                        Value *Left = Cmp->getOperand(0);
+                        Cmp->setOperand(0, Cmp->getOperand(1));
+                        Cmp->setOperand(1, Left);
+                        Cmp->setPredicate(CmpInst::getSwappedPredicate(Cmp->getPredicate()));
+                        ++SwappedComparisons;
+                    }
+                    continue;
+                }
+                auto *Binary = dyn_cast<BinaryOperator>(&I);
+                if (Binary == nullptr || !Binary->isCommutative()) {
+                    continue;
+                }
+                if (isa<ConstantInt>(Binary->getOperand(0)) && !isa<ConstantInt>(Binary->getOperand(1))) {
+                    Value *Left = Binary->getOperand(0);
+                    Binary->setOperand(0, Binary->getOperand(1));
+                    Binary->setOperand(1, Left);
+                    ++SwappedCommutativeOps;
+                }
+            }
+        }
+    }
+    if (Selected == 0) {
+        return false;
+    }
+
+    LLVMContext &Ctx = M.getContext();
+    const std::string SelectedCount = "selected_functions=" + std::to_string(Selected);
+    const std::string ComparisonCount = "swapped_comparisons=" + std::to_string(SwappedComparisons);
+    const std::string CommutativeCount = "swapped_commutative_ops=" + std::to_string(SwappedCommutativeOps);
+    Metadata *Operands[] = {
+        MDString::get(Ctx, "vmp-ir-normalize"),
+        MDString::get(Ctx, SelectedCount),
+        MDString::get(Ctx, ComparisonCount),
+        MDString::get(Ctx, CommutativeCount),
+    };
+    M.getOrInsertNamedMetadata("vmp.ir.normalization")->addOperand(MDNode::get(Ctx, Operands));
+    return true;
+}
+
+bool hasPrintableRun(ArrayRef<std::uint8_t> Bytes, std::size_t MinRun = 4) {
+    std::size_t Run = 0;
+    for (std::uint8_t Byte : Bytes) {
+        if (Byte >= 0x20 && Byte <= 0x7e) {
+            ++Run;
+            if (Run >= MinRun) {
+                return true;
+            }
+            continue;
+        }
+        Run = 0;
+    }
+    return false;
+}
+
+std::optional<std::vector<std::uint8_t>> encryptableStringInitializer(const GlobalVariable &Global) {
+    if (!Global.hasInitializer() || !Global.isConstant() || Global.getAddressSpace() != 0 ||
+        Global.getName().startswith("vmp.")) {
+        return std::nullopt;
+    }
+    if (!Global.hasPrivateLinkage() && !Global.hasInternalLinkage()) {
+        return std::nullopt;
+    }
+    auto *ArrayTy = dyn_cast<ArrayType>(Global.getValueType());
+    auto *Data = dyn_cast<ConstantDataArray>(Global.getInitializer());
+    if (ArrayTy == nullptr || Data == nullptr || !ArrayTy->getElementType()->isIntegerTy(8) ||
+        !Data->getElementType()->isIntegerTy(8) || Data->getNumElements() == 0) {
+        return std::nullopt;
+    }
+    std::vector<std::uint8_t> Bytes;
+    Bytes.reserve(Data->getNumElements());
+    for (unsigned Index = 0; Index < Data->getNumElements(); ++Index) {
+        Bytes.push_back(static_cast<std::uint8_t>(Data->getElementAsInteger(Index)));
+    }
+    if (!hasPrintableRun(Bytes)) {
+        return std::nullopt;
+    }
+    return Bytes;
+}
+
+std::string uniqueInternalName(Module &M, StringRef Base) {
+    std::string Name = Base.str();
+    unsigned Suffix = 0;
+    while (M.getNamedValue(Name) != nullptr) {
+        Name = (Base + "." + Twine(++Suffix)).str();
+    }
+    return Name;
+}
+
+bool encryptConstantStrings(Module &M) {
+    struct EncryptedString {
+        GlobalVariable *Global;
+        std::uint8_t Key;
+        std::uint64_t Length;
+    };
+
+    SmallVector<EncryptedString, 8> Encrypted;
+    std::uint64_t TotalBytes = 0;
+    LLVMContext &Ctx = M.getContext();
+    for (GlobalVariable &Global : M.globals()) {
+        auto Plain = encryptableStringInitializer(Global);
+        if (!Plain.has_value()) {
+            continue;
+        }
+        std::uint8_t Key = static_cast<std::uint8_t>(
+            (vmp::core::stableHash64(Global.getName().str(), 0x6d1f2a4b9c3779b1ULL) & 0xffU) ^ 0xa5U);
+        if (Key == 0) {
+            Key = 0xa5;
+        }
+        std::vector<std::uint8_t> Cipher = *Plain;
+        for (std::uint8_t &Byte : Cipher) {
+            Byte ^= Key;
+        }
+        Global.setConstant(false);
+        Global.setInitializer(ConstantDataArray::get(Ctx, Cipher));
+        Global.setMetadata("vmp.const_string.encrypted", MDNode::get(Ctx, MDString::get(Ctx, "xor-ctor-decode")));
+        Encrypted.push_back(EncryptedString{&Global, Key, static_cast<std::uint64_t>(Cipher.size())});
+        TotalBytes += Cipher.size();
+    }
+    if (Encrypted.empty()) {
+        return false;
+    }
+
+    auto *VoidTy = Type::getVoidTy(Ctx);
+    auto *I8Ty = Type::getInt8Ty(Ctx);
+    auto *I64Ty = Type::getInt64Ty(Ctx);
+    auto *DecodeTy = FunctionType::get(VoidTy, false);
+    auto *Decode = Function::Create(DecodeTy, GlobalValue::InternalLinkage, uniqueInternalName(M, "vmp.conststr.decode"), M);
+    Decode->setVisibility(GlobalValue::HiddenVisibility);
+    Decode->setDSOLocal(true);
+
+    BasicBlock *Done = BasicBlock::Create(Ctx, "done", Decode);
+    BasicBlock *Current = BasicBlock::Create(Ctx, "entry", Decode, Done);
+    for (const EncryptedString &Item : Encrypted) {
+        BasicBlock *Loop = BasicBlock::Create(Ctx, "vmp.str.loop", Decode, Done);
+        BasicBlock *After = BasicBlock::Create(Ctx, "vmp.str.next", Decode, Done);
+        IRBuilder<> CurrentBuilder(Current);
+        CurrentBuilder.CreateBr(Loop);
+
+        IRBuilder<> B(Loop);
+        auto *Index = B.CreatePHI(I64Ty, 2, "vmp.str.i");
+        Value *Zero = ConstantInt::get(I64Ty, 0);
+        Value *Ptr = B.CreateInBoundsGEP(Item.Global->getValueType(), Item.Global, {Zero, Index}, "vmp.str.ptr");
+        Value *Byte = B.CreateLoad(I8Ty, Ptr, "vmp.str.byte");
+        Value *Decoded = B.CreateXor(Byte, ConstantInt::get(I8Ty, Item.Key), "vmp.str.decoded");
+        B.CreateStore(Decoded, Ptr);
+        Value *Next = B.CreateAdd(Index, ConstantInt::get(I64Ty, 1), "vmp.str.next");
+        Value *Finished = B.CreateICmpEQ(Next, ConstantInt::get(I64Ty, Item.Length), "vmp.str.done");
+        B.CreateCondBr(Finished, After, Loop);
+        Index->addIncoming(Zero, Current);
+        Index->addIncoming(Next, Loop);
+        Current = After;
+    }
+    IRBuilder<> CurrentBuilder(Current);
+    CurrentBuilder.CreateBr(Done);
+    IRBuilder<> DoneBuilder(Done);
+    DoneBuilder.CreateRetVoid();
+    appendToGlobalCtors(M, Decode, 0);
+
+    const std::string Count = "encrypted_globals=" + std::to_string(Encrypted.size());
+    const std::string Bytes = "encrypted_bytes=" + std::to_string(TotalBytes);
+    Metadata *Operands[] = {
+        MDString::get(Ctx, "vmp-const-string-encryption"),
+        MDString::get(Ctx, Count),
+        MDString::get(Ctx, Bytes),
+    };
+    M.getOrInsertNamedMetadata("vmp.const_string.encryption")->addOperand(MDNode::get(Ctx, Operands));
+    return true;
+}
+
 bool substituteIntegerComparisons(Module &M) {
     SmallVector<ICmpInst *, 16> Comparisons;
     for (Function &F : M) {
@@ -379,12 +647,22 @@ bool substituteIntegerComparisons(Module &M) {
     return !Comparisons.empty();
 }
 
-bool supportsReplacementStub(const Function &F) {
-    if (!F.getReturnType()->isIntegerTy(32) || F.arg_size() > 4) {
+bool isRuntimeScalarType(const Type *Ty) {
+    return Ty->isIntegerTy(32) || Ty->isIntegerTy(64);
+}
+
+unsigned runtimeScalarWidth(const Type *Ty) {
+    auto *IntTy = dyn_cast<IntegerType>(Ty);
+    return IntTy == nullptr ? 0U : IntTy->getBitWidth();
+}
+
+bool supportsVirtualizedRuntimeSignature(const Function &F) {
+    if (!isRuntimeScalarType(F.getReturnType()) || F.arg_size() > 4) {
         return false;
     }
+    const unsigned ReturnWidth = runtimeScalarWidth(F.getReturnType());
     for (const Argument &Arg : F.args()) {
-        if (!Arg.getType()->isIntegerTy(32)) {
+        if (runtimeScalarWidth(Arg.getType()) != ReturnWidth) {
             return false;
         }
     }
@@ -513,31 +791,33 @@ bool isSupportedNarrowTruncViaWideToI32Cast(const CastInst &Cast) {
     return true;
 }
 
-bool isSupportedLocalI32Alloca(const AllocaInst &Alloca) {
+bool isSupportedLocalScalarAlloca(const AllocaInst &Alloca) {
     auto *ArraySize = dyn_cast<ConstantInt>(Alloca.getArraySize());
-    return Alloca.getType()->getPointerAddressSpace() == 0 && Alloca.getAllocatedType()->isIntegerTy(32) &&
+    return Alloca.getType()->getPointerAddressSpace() == 0 && isRuntimeScalarType(Alloca.getAllocatedType()) &&
            ArraySize != nullptr && ArraySize->isOne();
 }
 
-const AllocaInst *asSupportedLocalI32Alloca(const Value *Pointer) {
+const AllocaInst *asSupportedLocalScalarAlloca(const Value *Pointer) {
     if (Pointer == nullptr) {
         return nullptr;
     }
     auto *Alloca = dyn_cast<AllocaInst>(Pointer);
-    if (Alloca == nullptr || !isSupportedLocalI32Alloca(*Alloca)) {
+    if (Alloca == nullptr || !isSupportedLocalScalarAlloca(*Alloca)) {
         return nullptr;
     }
     return Alloca;
 }
 
-bool isSupportedLocalI32Load(const LoadInst &Load) {
-    return Load.isSimple() && Load.getType()->isIntegerTy(32) &&
-           asSupportedLocalI32Alloca(Load.getPointerOperand()) != nullptr;
+bool isSupportedLocalScalarLoad(const LoadInst &Load) {
+    const AllocaInst *Slot = asSupportedLocalScalarAlloca(Load.getPointerOperand());
+    return Load.isSimple() && isRuntimeScalarType(Load.getType()) && Slot != nullptr &&
+           Slot->getAllocatedType() == Load.getType();
 }
 
-bool isSupportedLocalI32Store(const StoreInst &Store) {
-    return Store.isSimple() && Store.getValueOperand()->getType()->isIntegerTy(32) &&
-           asSupportedLocalI32Alloca(Store.getPointerOperand()) != nullptr;
+bool isSupportedLocalScalarStore(const StoreInst &Store) {
+    const AllocaInst *Slot = asSupportedLocalScalarAlloca(Store.getPointerOperand());
+    return Store.isSimple() && isRuntimeScalarType(Store.getValueOperand()->getType()) && Slot != nullptr &&
+           Slot->getAllocatedType() == Store.getValueOperand()->getType();
 }
 
 bool isLocalMemoryInstruction(const Instruction &I) {
@@ -602,19 +882,19 @@ bool localMemoryShapeIsSafe(const Function &F) {
                 return false;
             }
             if (auto *Alloca = dyn_cast<AllocaInst>(&I)) {
-                if (!isSupportedLocalI32Alloca(*Alloca) || ++SlotCount > 32U) {
+                if (!isSupportedLocalScalarAlloca(*Alloca) || ++SlotCount > 32U) {
                     return false;
                 }
                 continue;
             }
             if (auto *Store = dyn_cast<StoreInst>(&I)) {
-                if (!isSupportedLocalI32Store(*Store)) {
+                if (!isSupportedLocalScalarStore(*Store)) {
                     return false;
                 }
                 continue;
             }
             if (auto *Load = dyn_cast<LoadInst>(&I)) {
-                if (!isSupportedLocalI32Load(*Load)) {
+                if (!isSupportedLocalScalarLoad(*Load)) {
                     return false;
                 }
             }
@@ -625,22 +905,24 @@ bool localMemoryShapeIsSafe(const Function &F) {
 
 bool isLoweringSubsetInstruction(const Instruction &I) {
     if (auto *Alloca = dyn_cast<AllocaInst>(&I)) {
-        return isSupportedLocalI32Alloca(*Alloca);
+        return isSupportedLocalScalarAlloca(*Alloca);
     }
     if (auto *Load = dyn_cast<LoadInst>(&I)) {
-        return isSupportedLocalI32Load(*Load);
+        return isSupportedLocalScalarLoad(*Load);
     }
     if (auto *Store = dyn_cast<StoreInst>(&I)) {
-        return isSupportedLocalI32Store(*Store);
+        return isSupportedLocalScalarStore(*Store);
     }
     if (auto *BinOp = dyn_cast<BinaryOperator>(&I)) {
-        if (!BinOp->getType()->isIntegerTy(32) || hasUnsupportedPoisonGeneratingFlags(*BinOp)) {
+        if (!isRuntimeScalarType(BinOp->getType()) || hasUnsupportedPoisonGeneratingFlags(*BinOp)) {
             return false;
         }
-        return BinOp->getOpcode() == Instruction::Add || BinOp->getOpcode() == Instruction::Sub ||
-               BinOp->getOpcode() == Instruction::Mul || BinOp->getOpcode() == Instruction::And ||
-               BinOp->getOpcode() == Instruction::Or || BinOp->getOpcode() == Instruction::Xor ||
-               isSupportedI32Shift(*BinOp);
+        if (BinOp->getOpcode() == Instruction::Add || BinOp->getOpcode() == Instruction::Sub ||
+            BinOp->getOpcode() == Instruction::Mul || BinOp->getOpcode() == Instruction::And ||
+            BinOp->getOpcode() == Instruction::Or || BinOp->getOpcode() == Instruction::Xor) {
+            return true;
+        }
+        return isSupportedI32Shift(*BinOp);
     }
     if (auto *Cmp = dyn_cast<ICmpInst>(&I)) {
         if (!Cmp->getOperand(0)->getType()->isIntegerTy(32) || !Cmp->getOperand(1)->getType()->isIntegerTy(32)) {
@@ -675,7 +957,7 @@ bool isLoweringSubsetInstruction(const Instruction &I) {
         return Branch->isConditional() || Branch->isUnconditional();
     }
     if (auto *Ret = dyn_cast<ReturnInst>(&I)) {
-        return Ret->getNumOperands() == 1 && Ret->getReturnValue()->getType()->isIntegerTy(32);
+        return Ret->getNumOperands() == 1 && isRuntimeScalarType(Ret->getReturnValue()->getType());
     }
     if (auto *Call = dyn_cast<CallInst>(&I)) {
         return isSupportedHostBridgeCall(*Call);
@@ -735,9 +1017,160 @@ std::vector<std::uint8_t> serializeRuntimeArtifact(const vmp::core::OpcodeMap &M
     return Out;
 }
 
-class I32DiamondLowering final {
+std::uint32_t readRuntimeArtifactU32(const std::vector<std::uint8_t> &Bytes, std::size_t Offset) {
+    std::uint32_t Value = 0;
+    for (unsigned Index = 0; Index < 4; ++Index) {
+        Value |= static_cast<std::uint32_t>(Bytes.at(Offset + Index)) << (Index * 8U);
+    }
+    return Value;
+}
+
+std::uint64_t readRuntimeArtifactU64(const std::vector<std::uint8_t> &Bytes, std::size_t Offset) {
+    std::uint64_t Value = 0;
+    for (unsigned Index = 0; Index < 8; ++Index) {
+        Value |= static_cast<std::uint64_t>(Bytes.at(Offset + Index)) << (Index * 8U);
+    }
+    return Value;
+}
+
+std::optional<std::vector<std::uint8_t>> globalInitializerBytes(const GlobalVariable &Global) {
+    if (!Global.hasInitializer()) {
+        return std::nullopt;
+    }
+    std::vector<std::uint8_t> Bytes;
+    if (auto *Data = dyn_cast<ConstantDataArray>(Global.getInitializer())) {
+        if (!Data->getElementType()->isIntegerTy(8)) {
+            return std::nullopt;
+        }
+        Bytes.reserve(Data->getNumElements());
+        for (unsigned Index = 0; Index < Data->getNumElements(); ++Index) {
+            Bytes.push_back(static_cast<std::uint8_t>(Data->getElementAsInteger(Index)));
+        }
+        return Bytes;
+    }
+    auto *Array = dyn_cast<ConstantArray>(Global.getInitializer());
+    if (Array == nullptr) {
+        return std::nullopt;
+    }
+    Bytes.reserve(Array->getNumOperands());
+    for (Value *Operand : Array->operands()) {
+        auto *Byte = dyn_cast<ConstantInt>(Operand);
+        if (Byte == nullptr || Byte->getBitWidth() != 8) {
+            return std::nullopt;
+        }
+        Bytes.push_back(static_cast<std::uint8_t>(Byte->getZExtValue()));
+    }
+    return Bytes;
+}
+
+struct RuntimeArtifactAudit {
+    unsigned artifacts = 0;
+    unsigned randomizedOpcodeMaps = 0;
+    unsigned sealedPayloads = 0;
+    unsigned vmLevelPolicies = 0;
+};
+
+bool auditRuntimeArtifact(const std::vector<std::uint8_t> &Bytes, RuntimeArtifactAudit &Audit) {
+    constexpr std::array<std::uint8_t, 8> Magic{0xd4, 0x13, 0x8a, 0x61, 0x2e, 0xc7, 0x90, 0x5b};
+    constexpr std::size_t MinimumHeaderBytes = 64;
+    if (Bytes.size() < MinimumHeaderBytes || !std::equal(Magic.begin(), Magic.end(), Bytes.begin())) {
+        return false;
+    }
+    const std::uint32_t TotalSize = readRuntimeArtifactU32(Bytes, 8);
+    const std::uint32_t Version = readRuntimeArtifactU32(Bytes, 12);
+    const std::uint32_t VmLevel = readRuntimeArtifactU32(Bytes, 16);
+    const std::uint64_t Nonce = readRuntimeArtifactU64(Bytes, 36);
+    const std::uint64_t AuthTag = readRuntimeArtifactU64(Bytes, 44);
+    if (TotalSize != Bytes.size() || Version != 1 || VmLevel < 1 || VmLevel > 3) {
+        return false;
+    }
+
+    std::size_t Offset = 64;
+    const std::uint32_t MapSize = readRuntimeArtifactU32(Bytes, 60);
+    if (MapSize != static_cast<std::uint32_t>(vmp::core::SemanticOpcode::Count) ||
+        Offset + MapSize + sizeof(std::uint32_t) > Bytes.size()) {
+        return false;
+    }
+    std::array<bool, 256> SeenOpcodes{};
+    bool UniqueNonZeroOpcodes = true;
+    for (std::size_t Index = 0; Index < MapSize; ++Index) {
+        const std::uint8_t Opcode = Bytes.at(Offset + Index);
+        if (Opcode == 0 || SeenOpcodes[Opcode]) {
+            UniqueNonZeroOpcodes = false;
+            break;
+        }
+        SeenOpcodes[Opcode] = true;
+    }
+    Offset += MapSize;
+    const std::uint32_t PayloadSize = readRuntimeArtifactU32(Bytes, Offset);
+    Offset += sizeof(std::uint32_t);
+    if (PayloadSize == 0 || Offset + PayloadSize != Bytes.size()) {
+        return false;
+    }
+
+    ++Audit.artifacts;
+    if (UniqueNonZeroOpcodes) {
+        ++Audit.randomizedOpcodeMaps;
+    }
+    if (Nonce != 0 && AuthTag != 0) {
+        ++Audit.sealedPayloads;
+    }
+    ++Audit.vmLevelPolicies;
+    return true;
+}
+
+RuntimeArtifactAudit auditRuntimeArtifacts(const Module &M) {
+    RuntimeArtifactAudit Audit;
+    for (const GlobalVariable &Global : M.globals()) {
+        if (Global.getMetadata("vmp.generated.bytecode") == nullptr) {
+            continue;
+        }
+        auto Bytes = globalInitializerBytes(Global);
+        if (!Bytes.has_value()) {
+            continue;
+        }
+        auditRuntimeArtifact(*Bytes, Audit);
+    }
+    return Audit;
+}
+
+bool recordIntegratedBytecodeStage(Module &M, StringRef StageName) {
+    const RuntimeArtifactAudit Audit = auditRuntimeArtifacts(M);
+    if (Audit.artifacts == 0) {
+        return false;
+    }
+    bool StageSatisfied = false;
+    if (StageName == "vmp-opcode-randomize") {
+        StageSatisfied = Audit.randomizedOpcodeMaps == Audit.artifacts;
+    } else if (StageName == "vmp-bytecode-encrypt") {
+        StageSatisfied = Audit.sealedPayloads == Audit.artifacts;
+    } else if (StageName == "vmp-nesting") {
+        StageSatisfied = Audit.vmLevelPolicies == Audit.artifacts;
+    }
+    if (!StageSatisfied) {
+        return false;
+    }
+
+    LLVMContext &Ctx = M.getContext();
+    NamedMDNode *Preparation = M.getOrInsertNamedMetadata("vmp.bytecode.preparation");
+    const std::string ArtifactCount = "artifacts=" + std::to_string(Audit.artifacts);
+    const std::string OpcodeCount = "randomized_opcode_maps=" + std::to_string(Audit.randomizedOpcodeMaps);
+    const std::string SealedCount = "sealed_payloads=" + std::to_string(Audit.sealedPayloads);
+    const std::string VmPolicyCount = "vm_level_policies=" + std::to_string(Audit.vmLevelPolicies);
+    Metadata *Operands[] = {
+        MDString::get(Ctx, StageName),
+        MDString::get(Ctx, ArtifactCount),
+        MDString::get(Ctx, OpcodeCount),
+        MDString::get(Ctx, SealedCount),
+        MDString::get(Ctx, VmPolicyCount),
+    };
+    Preparation->addOperand(MDNode::get(Ctx, Operands));
+    return true;
+}
+
+class RuntimeScalarLowering final {
 public:
-    explicit I32DiamondLowering(const Function &F) : Function_(F) {
+    explicit RuntimeScalarLowering(const Function &F) : Function_(F) {
         std::uint8_t Reg = 1;
         for (const Argument &Arg : F.args()) {
             ValueRegs_[&Arg] = Reg++;
@@ -760,8 +1193,8 @@ private:
         bool unsupportedControl = false;
     };
 
-    static bool isSupportedI32(const Value *V) {
-        return V->getType()->isIntegerTy(32);
+    static bool isSupportedRuntimeScalar(const Value *V) {
+        return isRuntimeScalarType(V->getType());
     }
 
     static bool isZeroIntegerConstant(const Value *V) {
@@ -1048,7 +1481,7 @@ private:
     }
 
     const StoreInst *findStoreForLoad(const LoadInst &Load) const {
-        const AllocaInst *Slot = asSupportedLocalI32Alloca(Load.getPointerOperand());
+        const AllocaInst *Slot = asSupportedLocalScalarAlloca(Load.getPointerOperand());
         if (Slot == nullptr) {
             return nullptr;
         }
@@ -1060,10 +1493,10 @@ private:
                     return LastStore;
                 }
                 auto *Store = dyn_cast<StoreInst>(&I);
-                if (Store == nullptr || !isSupportedLocalI32Store(*Store)) {
+                if (Store == nullptr || !isSupportedLocalScalarStore(*Store)) {
                     continue;
                 }
-                if (asSupportedLocalI32Alloca(Store->getPointerOperand()) == Slot) {
+                if (asSupportedLocalScalarAlloca(Store->getPointerOperand()) == Slot) {
                     LastStore = Store;
                 }
             }
@@ -1079,7 +1512,7 @@ private:
         if (EmittedStores_.count(Store) != 0) {
             return true;
         }
-        const AllocaInst *Slot = asSupportedLocalI32Alloca(Store->getPointerOperand());
+        const AllocaInst *Slot = asSupportedLocalScalarAlloca(Store->getPointerOperand());
         auto StoredReg = lowerValue(Store->getValueOperand());
         if (Slot == nullptr || !StoredReg) {
             return false;
@@ -1133,7 +1566,7 @@ private:
     }
 
     std::optional<std::uint8_t> lowerValue(const Value *V) {
-        if (!isSupportedI32(V)) {
+        if (!isSupportedRuntimeScalar(V)) {
             return std::nullopt;
         }
         if (auto Found = ValueRegs_.find(V); Found != ValueRegs_.end()) {
@@ -1151,7 +1584,7 @@ private:
 
         auto *Load = dyn_cast<LoadInst>(V);
         if (Load != nullptr) {
-            const AllocaInst *Slot = asSupportedLocalI32Alloca(Load->getPointerOperand());
+            const AllocaInst *Slot = asSupportedLocalScalarAlloca(Load->getPointerOperand());
             if (Slot == nullptr || !emitStoreForLoad(*Load)) {
                 return std::nullopt;
             }
@@ -1459,7 +1892,7 @@ private:
 
 std::optional<std::vector<std::uint8_t>> lowerRuntimeArtifact(const Function &F,
                                                               const vmp::core::ProtectionConfig &Config) {
-    if (!supportsReplacementStub(F)) {
+    if (!supportsVirtualizedRuntimeSignature(F)) {
         return std::nullopt;
     }
     if (!fitsLoweringSubset(F)) {
@@ -1474,7 +1907,7 @@ std::optional<std::vector<std::uint8_t>> lowerRuntimeArtifact(const Function &F,
     const auto VmLevel = vmLevelForFunction(Config, F);
     const auto Map = vmp::core::buildOpcodeMap(SeedMaterial, FunctionHash, kRuntimePlatformSalt, VmLevel);
 
-    auto Program = I32DiamondLowering(F).lower();
+    auto Program = RuntimeScalarLowering(F).lower();
     if (!Program) {
         return std::nullopt;
     }
@@ -1550,6 +1983,23 @@ GlobalVariable *getOrCreateBytecodeGlobal(Module &M, Function &F, const vmp::cor
 }
 
 const char *runtimeEntryNameFor(const Function &Target) {
+    const bool IsI64 = Target.getReturnType()->isIntegerTy(64);
+    if (IsI64) {
+        switch (Target.arg_size()) {
+        case 0:
+            return "vmp_runtime_entry_i64";
+        case 1:
+            return "vmp_runtime_entry_i64_i64";
+        case 2:
+            return "vmp_runtime_entry_i64_i64_i64";
+        case 3:
+            return "vmp_runtime_entry_i64_i64_i64_i64";
+        case 4:
+            return "vmp_runtime_entry_i64_i64_i64_i64_i64";
+        default:
+            llvm_unreachable("unsupported runtime-entry argument count");
+        }
+    }
     switch (Target.arg_size()) {
     case 0:
         return "vmp_runtime_entry_i32";
@@ -1570,11 +2020,12 @@ FunctionType *runtimeEntryTypeFor(LLVMContext &Ctx, const Function &Target) {
     Type *I8PtrTy = Type::getInt8PtrTy(Ctx);
     Type *I64Ty = Type::getInt64Ty(Ctx);
     Type *I32Ty = Type::getInt32Ty(Ctx);
+    Type *ScalarTy = Target.getReturnType()->isIntegerTy(64) ? I64Ty : I32Ty;
     SmallVector<Type *, 5> Params;
     Params.push_back(I8PtrTy);
     Params.push_back(I64Ty);
-    Params.append(Target.arg_size(), I32Ty);
-    return FunctionType::get(I32Ty, Params, false);
+    Params.append(Target.arg_size(), ScalarTy);
+    return FunctionType::get(ScalarTy, Params, false);
 }
 
 bool isAcceptableRuntimeEntryDeclaration(const Function &RuntimeEntry, FunctionType *ExpectedType) {
@@ -1636,7 +2087,7 @@ bool materializeBytecodeGlobals(Module &M) {
         if (!isSelectedFunction(F) || F.isDeclaration()) {
             continue;
         }
-        if (!supportsReplacementStub(F)) {
+        if (!supportsVirtualizedRuntimeSignature(F)) {
             markUnsupportedLowering(F, "unsupported-signature");
             Changed = true;
             continue;
@@ -2022,7 +2473,7 @@ bool replaceWithRuntimeStub(Module &M) {
         MDNode *Hotspot = F->getMetadata("vmp.hotspot");
         MDNode *VmLevel = F->getMetadata("vmp.vm_level");
         MDNode *BytecodeMetadata = F->getMetadata("vmp.bytecode");
-        if (!supportsReplacementStub(*F)) {
+        if (!supportsVirtualizedRuntimeSignature(*F)) {
             if (BytecodeMetadata != nullptr || F->getMetadata("vmp.lowering") != nullptr ||
                 F->getMetadata("vmp.replaced") != nullptr) {
                 markUnsupportedLowering(*F, "unsupported-signature");
@@ -2107,8 +2558,16 @@ PreservedAnalyses runStage(Module &M, StringRef StageName) {
         return applyHotspotPolicy(M) ? PreservedAnalyses::none() : PreservedAnalyses::all();
     }
 
+    if (StageName == "vmp-ir-normalize") {
+        return normalizeProtectedIr(M) ? PreservedAnalyses::none() : PreservedAnalyses::all();
+    }
+
     if (StageName == "vmp-block-split") {
         return splitProtectedBlocks(M) ? PreservedAnalyses::none() : PreservedAnalyses::all();
+    }
+
+    if (StageName == "vmp-flatten") {
+        return flattenOptInBranches(M) ? PreservedAnalyses::none() : PreservedAnalyses::all();
     }
 
     if (StageName == "vmp-bogus-branch") {
@@ -2119,8 +2578,17 @@ PreservedAnalyses runStage(Module &M, StringRef StageName) {
         return substituteIntegerComparisons(M) ? PreservedAnalyses::none() : PreservedAnalyses::all();
     }
 
+    if (StageName == "vmp-const-string-encryption") {
+        return encryptConstantStrings(M) ? PreservedAnalyses::none() : PreservedAnalyses::all();
+    }
+
     if (StageName == "vmp-ir-to-bytecode") {
         return materializeBytecodeGlobals(M) ? PreservedAnalyses::none() : PreservedAnalyses::all();
+    }
+
+    if (StageName == "vmp-opcode-randomize" || StageName == "vmp-bytecode-encrypt" ||
+        StageName == "vmp-nesting") {
+        return recordIntegratedBytecodeStage(M, StageName) ? PreservedAnalyses::none() : PreservedAnalyses::all();
     }
 
     if (StageName == "vmp-anti-analysis-hooks") {
@@ -2206,6 +2674,18 @@ PreservedAnalyses runStage(Module &M, StringRef StageName) {
                    << ",\"capability_effects\":[";
             if (Stage == "vmp-ir-to-bytecode") {
                 errs() << "\"code_virtualization.bytecode_lowering\"";
+            } else if (Stage == "vmp-ir-normalize") {
+                errs() << "\"ir_normalization.canonical_integer_forms\"";
+            } else if (Stage == "vmp-const-string-encryption") {
+                errs() << "\"string_hiding.private_const_string_ctor_decode\"";
+            } else if (Stage == "vmp-flatten") {
+                errs() << "\"mutation_obfuscation.opt_in_switch_flattening\"";
+            } else if (Stage == "vmp-opcode-randomize") {
+                errs() << "\"code_virtualization.opcode_map_randomization\"";
+            } else if (Stage == "vmp-bytecode-encrypt") {
+                errs() << "\"code_virtualization.integrated_payload_sealing\"";
+            } else if (Stage == "vmp-nesting") {
+                errs() << "\"code_virtualization.vm_level_policy_encoding\"";
             } else if (Stage == "vmp-function-replacement") {
                 errs() << "\"code_virtualization.runtime_replacement\",\"callsite_obfuscation.indirect_thunks\","
                           "\"callsite_obfuscation.per_callsite_thunks\"";

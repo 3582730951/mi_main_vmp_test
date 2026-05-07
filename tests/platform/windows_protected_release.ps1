@@ -71,15 +71,16 @@ $sourceList = @(
 
 $exe = Join-Path $BuildDir "protected_release_sample.exe"
 if (Get-Command cl.exe -ErrorAction SilentlyContinue) {
-  & cl.exe /nologo /std:c++17 /O2 /GS- /GR- /DVMP_DISABLE_RUNTIME_ENTRY_EXPORTS=1 /DVMP_FREESTANDING_WINDOWS_ENTRY=1 /Gy /Gw /I $BuildDir /I src $sourceList /link /NODEFAULTLIB kernel32.lib /ENTRY:mainCRTStartup /SUBSYSTEM:CONSOLE /OPT:REF /OPT:ICF /OUT:$exe
+  & cl.exe /nologo /std:c++17 /O2 /GS- /GR- /DVMP_DISABLE_RUNTIME_ENTRY_EXPORTS=1 /DVMP_FREESTANDING_WINDOWS_ENTRY=1 /DVMP_WINDOWS_ENTRY_RETURNS_STATUS=1 /Gy /Gw /I $BuildDir /I src $sourceList /link /NODEFAULTLIB /ENTRY:mainCRTStartup /SUBSYSTEM:CONSOLE /OPT:REF /OPT:ICF /OUT:$exe
 } elseif (Get-Command g++ -ErrorAction SilentlyContinue) {
   $gppArgs = @(
     "-std=c++17", "-O2", "-DVMP_DISABLE_RUNTIME_ENTRY_EXPORTS=1", "-DVMP_FREESTANDING_WINDOWS_ENTRY=1",
+    "-DVMP_WINDOWS_ENTRY_RETURNS_STATUS=1",
     "-fno-exceptions", "-fno-rtti", "-fno-stack-protector", "-fno-asynchronous-unwind-tables", "-fno-unwind-tables",
     "-mno-stack-arg-probe", "-fvisibility=hidden", "-fdata-sections", "-ffunction-sections",
     "-I", $BuildDir, "-I", "src"
   ) + $sourceList + @(
-    "-nostdlib", "-nostartfiles", "-Wl,--gc-sections", "-Wl,-e,mainCRTStartup", "-lkernel32", "-o", $exe
+    "-nostdlib", "-nostartfiles", "-Wl,--gc-sections", "-Wl,-e,mainCRTStartup", "-o", $exe
   )
   & g++ @gppArgs
 } else {
@@ -89,6 +90,10 @@ if ($LASTEXITCODE -ne 0) {
   exit $LASTEXITCODE
 }
 python scripts/audit/scrub_pe_section_names.py $exe
+if ($LASTEXITCODE -ne 0) {
+  exit $LASTEXITCODE
+}
+python scripts/audit/scrub_pe_import_directory.py $exe
 if ($LASTEXITCODE -ne 0) {
   exit $LASTEXITCODE
 }
@@ -111,6 +116,8 @@ $forbidden = @(
   "Java_",
   "dlopen",
   "dlsym",
+  "ExitProcess",
+  "KERNEL32.dll",
   "VMPBC",
   "VMPSAM",
   "VMPIRL",

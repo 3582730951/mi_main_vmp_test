@@ -1,7 +1,33 @@
 {
   "artifact": "/workspace/artifacts/protected/linux/protected_release_sample",
-  "artifact_bytes": 8408,
+  "artifact_bytes": 16384,
   "behavior_cases_passed": 4,
+  "elf_load_layout": {
+    "dynamic_section_present": true,
+    "elf_type": "DYN",
+    "entry_point": 4096,
+    "fixed_load_address": false,
+    "gnu_relro_present": true,
+    "load_segment_virtual_addresses": [
+      0,
+      4096,
+      12288,
+      20256
+    ],
+    "position_independent_executable": true,
+    "program_header_count": 7,
+    "program_header_types": [
+      "LOAD",
+      "LOAD",
+      "LOAD",
+      "LOAD",
+      "DYNAMIC",
+      "GNU_STACK",
+      "GNU_RELRO"
+    ],
+    "program_interpreter_present": false,
+    "status": "observed"
+  },
   "elf_metadata_findings": [],
   "elf_metadata_observations": {
     "elf_class": "ELF64",
@@ -14,11 +40,12 @@
     "status": "observed"
   },
   "embedded_sample": "/workspace/tests/integration/.release-build/protected_sample.vmp",
-  "embedded_sample_bytes": 133,
+  "embedded_sample_bytes": 149,
   "forbidden_plaintext_hits": [],
+  "link_mode": "static-pie",
   "schema": "vmp.release.protected_binary.v1",
   "scope_note": "Local stripped Linux executable embeds the generated encrypted VM sample and executes it through a minimal release runner. This is release-artifact evidence, not VMProtect-tier commercial proof.",
   "status": "pass",
-  "strings_count": 17,
+  "strings_count": 0,
   "stripped": true
 }

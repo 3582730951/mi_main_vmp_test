@@ -228,6 +228,8 @@ local tests, manifests, or implementation effort alone. Final sign-off requires
 a commit-bound assessment report preserved at:
 
 - `docs/qa/reports/reverse-cost-assessment.json`
+- `docs/qa/reports/objective-completion-audit.json`
+- `docs/qa/reports/platform-string-residuals.json`
 
 The report must use `schema: "vmp.qa.reverse_cost_assessment.v1"` and include:
 
@@ -253,7 +255,16 @@ For the automated path, run `.github/workflows/reverse-cost.yml` on the target
 commit and import the `reverse-cost-evidence` artifact. That workflow rebuilds
 the protected sample, scans the protected binary with command-line analysis
 tools, verifies the LLVM call-site/decompiler-trap evidence, generates the
-assessment report, and runs the same reverse-cost gate.
+assessment report, and runs the same reverse-cost gate. The workflow delegates
+optional tool setup to `scripts/audit/install_reverse_tooling.sh`. The report
+also records GitHub-sourced optional tooling adapters for LIEF, Mandiant
+capa/capa-rules, Mandiant FLOSS, radare2/r2pipe, Rizin, angr, and Ghidra when
+they are available on the runner; missing optional tools are reported as
+`unavailable` instead of weakening or blocking the core acceptance evidence. The
+workflow also uploads `objective-completion-audit.json` as a sidecar so blocked
+literal-objective items can be inspected from the same artifact bundle. The
+`platform-string-residuals.json` sidecar classifies remaining Android/iOS
+printable byte runs by platform provenance without recording raw string values.
 
 ## Recheck Commands
 

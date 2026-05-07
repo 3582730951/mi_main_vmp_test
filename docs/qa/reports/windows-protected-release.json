@@ -3,11 +3,11 @@
   "status": "pass",
   "ci_execution": true,
   "github_actions": true,
-  "github_run_id": "25354416553",
+  "github_run_id": "25369974744",
   "github_run_attempt": "1",
   "github_workflow": "platform-windows",
   "github_repository": "3582730951/mi_main_vmp_test",
-  "github_sha": "a2b40f9d9990302ddcaa098760633722aaa99e63",
+  "github_sha": "4d851acd9e9b23bc5b9b97391d62d8498198d4b2",
   "github_event_name": "workflow_dispatch",
   "github_ref": "refs/heads/main",
   "github_ref_name": "main",
@@ -15,13 +15,32 @@
   "github_head_ref": "",
   "github_base_ref": "",
   "github_job": "build-protect-run",
-  "github_run_url": "https://github.com/3582730951/mi_main_vmp_test/actions/runs/25354416553",
+  "github_run_url": "https://github.com/3582730951/mi_main_vmp_test/actions/runs/25369974744",
   "runner_os": "Windows",
-  "runner_name": "GitHub Actions 1000004745",
+  "runner_name": "GitHub Actions 1000004807",
   "artifact": "build\\windows-protected\\protected_release_sample.exe",
-  "artifact_bytes": 110398,
-  "artifact_sha256": "4c9f89f92d4b7c13d91609c36e8ddaf9366f6aaf9b46f2668fdd3c18e238cb74",
+  "artifact_bytes": 8704,
+  "artifact_sha256": "530b08fade12bc110f4a315edeaceef3918e09d75501e0279710c2cee9812f67",
   "behavior_cases_passed": 4,
   "forbidden_plaintext_hits": [],
+  "pe_metadata": {
+    "findings": [],
+    "observations": {
+      "coff_symbol_count": 0,
+      "coff_symbol_table_offset": 0,
+      "coff_symbol_table_present": false,
+      "printable_section_names": [],
+      "section_count": 4,
+      "section_name_hex": [
+        "8193a5b700000000",
+        "8294a6b800000000",
+        "8395a7b900000000",
+        "8496a8ba00000000"
+      ],
+      "standard_section_names": [],
+      "standard_section_string_hits": [],
+      "status": "observed"
+    }
+  },
   "scope_note": "Windows runner builds and executes the local protected release sample. This is CI execution evidence when produced by GitHub Actions."
 }

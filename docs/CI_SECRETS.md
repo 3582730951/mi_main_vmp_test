@@ -7,10 +7,10 @@
 | Secret | Purpose | Used By |
 |---|---|---|
 | `VMP_CI_PAT` | Optional private dependency or repository access token | Manual setup, never echoed |
-| `ANDROID_KEYSTORE_B64` | Optional Android release keystore encoded for CI | Android packaging workflow |
-| `ANDROID_KEYSTORE_PASSWORD` | Optional Android keystore password | Android packaging workflow |
-| `ANDROID_KEY_ALIAS` | Optional Android signing alias | Android packaging workflow |
-| `ANDROID_KEY_PASSWORD` | Optional Android key password | Android packaging workflow |
+| `ANDROID_KEYSTORE_B64` | Android release keystore encoded for CI; required for final Android release-strength evidence | Android packaging workflow |
+| `ANDROID_KEYSTORE_PASSWORD` | Android keystore password; required with `ANDROID_KEYSTORE_B64` for final Android release-strength evidence | Android packaging workflow |
+| `ANDROID_KEY_ALIAS` | Android signing alias; required when the keystore has more than one alias | Android packaging workflow |
+| `ANDROID_KEY_PASSWORD` | Android key password; required when it differs from `ANDROID_KEYSTORE_PASSWORD` | Android packaging workflow |
 | `PLATFORM_WINDOWS_SIGNING_CERT` | Optional Windows signing certificate for future signed PE artifacts | Windows packaging workflow |
 | `PLATFORM_WINDOWS_SIGNING_PASSWORD` | Optional Windows signing password | Windows packaging workflow |
 | `APPLE_CERTIFICATE_P12_B64` | Optional Apple signing certificate for future signed iOS builds | macOS/iOS workflow |
