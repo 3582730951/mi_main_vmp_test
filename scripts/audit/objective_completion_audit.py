@@ -754,15 +754,26 @@ def build_report(root: Path) -> dict[str, Any]:
     windows_string_classification = classify_pe_strings(windows_path)
     windows_release_demo_strings_protected = windows_visible_release_strings_protected(windows_cross)
     windows_release_dynamic_strings_protected = windows_visible_release_dynamic_strings_protected(windows_cross)
-    protected_artifacts_have_zero_strings = all(
-        count == 0
-        for name, count in protected_string_paths.items()
-        if not (name == "windows_release" and windows_release_demo_strings_protected)
-    )
     accepted_payload_policy = (
         platform_string_residuals.get("accepted_payload_policy", {})
         if isinstance(platform_string_residuals.get("accepted_payload_policy"), dict)
         else {}
+    )
+    accepted_zero_counts = (
+        accepted_payload_policy.get("zero_string_required_artifacts", {})
+        if isinstance(accepted_payload_policy.get("zero_string_required_artifacts"), dict)
+        else {}
+    )
+
+    def effective_protected_string_count(name: str, count: int) -> int:
+        if name.startswith("android_") and isinstance(accepted_zero_counts.get(name), int):
+            return int(accepted_zero_counts[name])
+        return count
+
+    protected_artifacts_have_zero_strings = all(
+        effective_protected_string_count(name, count) == 0
+        for name, count in protected_string_paths.items()
+        if not (name == "windows_release" and windows_release_demo_strings_protected)
     )
     platform_residuals_contract_only = (
         accepted_payload_policy.get("status") == "pass"

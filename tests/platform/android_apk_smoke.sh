@@ -4,7 +4,7 @@ set -euo pipefail
 report_path="${1:-docs/qa/reports/android-apk-smoke.json}"
 sdk_root="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/opt/android-sdk}}"
 ndk_home="${ANDROID_NDK_HOME:-}"
-native_activity_smoke="${ANDROID_APK_SMOKE_NATIVE_ACTIVITY:-false}"
+native_activity_smoke="${ANDROID_APK_SMOKE_NATIVE_ACTIVITY:-true}"
 export ANDROID_APK_SMOKE_NATIVE_ACTIVITY="$native_activity_smoke"
 if [[ -z "$ndk_home" && -d "$sdk_root/ndk" ]]; then
   ndk_home="$(find "$sdk_root/ndk" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -n 1)"
@@ -538,18 +538,31 @@ fi
 adb uninstall "$package_name" >/dev/null 2>&1 || true
 adb install -r "$apk_root/mi-smoke.apk" >/dev/null
 adb logcat -c >/dev/null 2>&1 || true
-adb shell am start -W -n "$activity_component" >/dev/null
-sleep 2
+am_start_log="$apk_root/am-start.txt"
+logcat_full_log="$apk_root/logcat-full.txt"
 set +e
-result_text="$(adb logcat -d -s M:I 2>&1 | tr -d '\r')"
-read_status=$?
+adb shell am start -W -n "$activity_component" >"$am_start_log" 2>&1
+start_status=$?
 set -e
+result_text=""
+read_status=1
+for _ in $(seq 1 20); do
+  set +e
+  result_text="$(adb logcat -d -s M:I 2>&1 | tr -d '\r')"
+  read_status=$?
+  set -e
+  if [[ "$result_text" == *"sum="* || "$result_text" == *"protected_cases="* ]]; then
+    break
+  fi
+  sleep 0.5
+done
+adb logcat -d -v time >"$logcat_full_log" 2>&1 || true
 
 abi="$(adb shell getprop ro.product.cpu.abi 2>/dev/null | tr -d '\r')"
 api_level="$(adb shell getprop ro.build.version.sdk 2>/dev/null | tr -d '\r')"
 device_model="$(adb shell getprop ro.product.model 2>/dev/null | tr -d '\r')"
 
-python3 - "$report_path" "$read_status" "$result_text" "$abi" "$api_level" "$device_model" "$signing_key_scope" "$release_signing_secret_used" "${GITHUB_ACTIONS:-false}" "${RUNNER_OS:-}" "${RUNNER_NAME:-}" <<'PY'
+python3 - "$report_path" "$read_status" "$start_status" "$am_start_log" "$logcat_full_log" "$result_text" "$abi" "$api_level" "$device_model" "$signing_key_scope" "$release_signing_secret_used" "${GITHUB_ACTIONS:-false}" "${RUNNER_OS:-}" "${RUNNER_NAME:-}" <<'PY'
 import hashlib
 import json
 import os
@@ -561,15 +574,18 @@ from scripts.audit.surface_minimization_audit import elf_metadata_findings, elf_
 
 report = pathlib.Path(sys.argv[1])
 read_status = int(sys.argv[2])
-result_text = sys.argv[3]
-abi = sys.argv[4]
-api_level = sys.argv[5]
-device_model = sys.argv[6]
-signing_key_scope = sys.argv[7]
-release_signing_secret_used = sys.argv[8] == "true"
-github_actions = sys.argv[9] == "true"
-runner_os = sys.argv[10] or None
-runner_name = sys.argv[11] or None
+start_status = int(sys.argv[3])
+am_start_log = pathlib.Path(sys.argv[4])
+logcat_full_log = pathlib.Path(sys.argv[5])
+result_text = sys.argv[6]
+abi = sys.argv[7]
+api_level = sys.argv[8]
+device_model = sys.argv[9]
+signing_key_scope = sys.argv[10]
+release_signing_secret_used = sys.argv[11] == "true"
+github_actions = sys.argv[12] == "true"
+runner_os = sys.argv[13] or None
+runner_name = sys.argv[14] or None
 native_activity_smoke = os.environ.get("ANDROID_APK_SMOKE_NATIVE_ACTIVITY") == "true"
 github_run_url = None
 if os.environ.get("GITHUB_SERVER_URL") and os.environ.get("GITHUB_REPOSITORY") and os.environ.get("GITHUB_RUN_ID"):
@@ -655,10 +671,37 @@ with zipfile.ZipFile(apk) as archive:
 protected_asset_packaged = any(entry.endswith("protected_sample.vmp") for entry in apk_entries)
 def sha256(path):
     return hashlib.sha256(path.read_bytes()).hexdigest()
+def read_text(path):
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+def diagnostic_lines(text, limit=80):
+    needles = (
+        "androidruntime",
+        "fatal exception",
+        "unsatisfied",
+        "dlopen",
+        "nativeactivity",
+        "liba.so",
+        "linker",
+        "exception",
+        "crash",
+        " x.y",
+        " m:",
+    )
+    lines = [
+        line for line in text.splitlines()
+        if any(needle in line.lower() for needle in needles)
+    ]
+    return lines[-limit:]
+am_start_output = read_text(am_start_log).splitlines()
+logcat_diagnostics = diagnostic_lines(read_text(logcat_full_log))
 sum_ok = "sum=42" in result_text
 platform_ok = "platform=3" in result_text
 status_ok = (
-    read_status == 0
+    start_status == 0
+    and read_status == 0
     and sum_ok
     and platform_ok
     and protected_sample_ok
@@ -668,7 +711,9 @@ status_ok = (
     and not protected_asset_packaged
 )
 blocking_note = None
-if read_status != 0:
+if start_status != 0:
+    blocking_note = "APK activity launch command failed."
+elif read_status != 0 or not result_text.strip():
     blocking_note = "APK smoke result was not observed in logcat."
 elif not sum_ok:
     blocking_note = "JNI protected add did not return the expected value."
@@ -700,6 +745,8 @@ data = {
     "android_debuggable": False,
     "apk_install_executed": True,
     "apk_signature_verified": True,
+    "activity_start_exit_code": start_status,
+    "activity_start_output": am_start_output,
     "ci_execution": github_actions,
     "github_actions": github_actions,
     "github_run_id": os.environ.get("GITHUB_RUN_ID"),
@@ -729,7 +776,8 @@ data = {
     "native_elf_metadata_findings": native_elf_metadata_findings,
     "native_elf_metadata_gate": "report_only_runtime_preserving",
     "native_elf_metadata_observed_findings": native_elf_metadata_observed_findings,
-    "logcat_result_observed": read_status == 0,
+    "logcat_diagnostics": logcat_diagnostics,
+    "logcat_result_observed": read_status == 0 and bool(result_text.strip()),
     "manifest_debuggable": False,
     "release_claim": release_signing_secret_used,
     "release_like_local_test_build": True,

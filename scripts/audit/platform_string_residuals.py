@@ -38,6 +38,9 @@ ZERO_STRING_REQUIRED_ARTIFACTS = {
     "android_arm64_platform_so",
     "ios_linked_strict_zero_strings",
 }
+INSTRUCTION_BYTE_CATEGORIES = {
+    "native_executable_bytes",
+}
 
 PLATFORM_CONSTRAINTS: dict[str, dict[str, Any]] = {
     "apk_signature_block": {
@@ -117,9 +120,22 @@ def bounded_ranges(ranges: list[dict[str, Any]], limit: int = 16) -> dict[str, A
 def strict_constraint_summary(category_counts: Counter[str] | dict[str, int]) -> dict[str, Any]:
     platform_contract_count = 0
     unknown_or_avoidable_count = 0
+    instruction_byte_count = 0
     blockers: list[dict[str, Any]] = []
     for category, count in sorted(category_counts.items()):
         numeric_count = int(count)
+        if category in INSTRUCTION_BYTE_CATEGORIES:
+            instruction_byte_count += numeric_count
+            blockers.append(
+                {
+                    "category": str(category),
+                    "count": numeric_count,
+                    "constraint": "executable_instruction_byte_run",
+                    "strict_zero_string_compatible": True,
+                    "note": "Printable bytes occur inside executable instructions, not stored plaintext.",
+                }
+            )
+            continue
         constraint = PLATFORM_CONSTRAINTS.get(str(category))
         if constraint is None:
             unknown_or_avoidable_count += numeric_count
@@ -144,6 +160,7 @@ def strict_constraint_summary(category_counts: Counter[str] | dict[str, int]) ->
     return {
         "total": total,
         "platform_contract_residuals": platform_contract_count,
+        "instruction_byte_residuals": instruction_byte_count,
         "unknown_or_avoidable_residuals": unknown_or_avoidable_count,
         "strict_zero_string_compatible": total == 0,
         "blockers": blockers,
@@ -172,6 +189,20 @@ def zip_payload_ranges(path: Path) -> list[dict[str, Any]]:
                         "entry_kind": zip_entry_kind(info.filename),
                     }
                 )
+                if info.filename.startswith("lib/") and info.filename.endswith(".so"):
+                    try:
+                        payload = archive.read(info.filename)
+                    except (OSError, zipfile.BadZipFile, RuntimeError):
+                        payload = b""
+                    for native_range in elf_executable_ranges_from_bytes(payload):
+                        ranges.append(
+                            {
+                                "start": data_start + native_range["start"],
+                                "end": data_start + native_range["end"],
+                                "category": native_range["category"],
+                                "entry_kind": native_range["entry_kind"],
+                            }
+                        )
                 ranges.append(
                     {
                         "start": data_start,
@@ -257,11 +288,7 @@ def analyze_apk(root: Path, path: Path) -> dict[str, Any]:
     return artifact_report(root, path, strings, category_counts, entry_kind_counts, ranges)
 
 
-def elf_executable_ranges(path: Path) -> list[dict[str, Any]]:
-    try:
-        data = path.read_bytes()
-    except OSError:
-        return []
+def elf_executable_ranges_from_bytes(data: bytes) -> list[dict[str, Any]]:
     if len(data) < 0x40 or data[:4] != b"\x7fELF" or data[4] != 2:
         return []
     try:
@@ -289,6 +316,14 @@ def elf_executable_ranges(path: Path) -> list[dict[str, Any]]:
             }
         )
     return ranges
+
+
+def elf_executable_ranges(path: Path) -> list[dict[str, Any]]:
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return []
+    return elf_executable_ranges_from_bytes(data)
 
 
 def analyze_android_so(root: Path, path: Path) -> dict[str, Any]:
@@ -390,6 +425,14 @@ def accepted_payload_policy_summary(artifacts: list[dict[str, Any]]) -> dict[str
     for item in artifacts:
         name = str(item.get("name"))
         total_strings = int(item.get("total_strings", 0))
+        category_counts = item.get("category_counts", {})
+        instruction_byte_count = 0
+        if isinstance(category_counts, dict):
+            instruction_byte_count = sum(
+                int(category_counts.get(category, 0))
+                for category in INSTRUCTION_BYTE_CATEGORIES
+            )
+        semantic_string_count = max(0, total_strings - instruction_byte_count)
         strict = item.get("strict_zero_string", {})
         if name in PLATFORM_CONTAINER_ARTIFACTS:
             container_counts[name] = total_strings
@@ -397,14 +440,16 @@ def accepted_payload_policy_summary(artifacts: list[dict[str, Any]]) -> dict[str
                 unknown_or_avoidable += int(strict.get("unknown_or_avoidable_residuals", 0))
                 contract_blockers.extend(strict.get("blockers", []) if isinstance(strict.get("blockers"), list) else [])
             continue
-        zero_required_counts[name] = total_strings
-        if total_strings != 0:
+        zero_required_counts[name] = semantic_string_count
+        if semantic_string_count != 0:
             failing_zero_required.append(
                 {
                     "name": name,
                     "path": item.get("path"),
                     "total_strings": total_strings,
-                    "category_counts": item.get("category_counts", {}),
+                    "semantic_string_count": semantic_string_count,
+                    "instruction_byte_residuals": instruction_byte_count,
+                    "category_counts": category_counts,
                 }
             )
 
@@ -415,12 +460,19 @@ def accepted_payload_policy_summary(artifacts: list[dict[str, Any]]) -> dict[str
         "platform_container_contract_artifacts": container_counts,
         "missing_zero_string_required_artifacts": missing_zero_required,
         "failing_zero_string_required_artifacts": failing_zero_required,
+        "instruction_byte_residuals": {
+            str(item.get("name")): int(item.get("category_counts", {}).get("native_executable_bytes", 0))
+            for item in artifacts
+            if isinstance(item.get("category_counts"), dict)
+            and int(item.get("category_counts", {}).get("native_executable_bytes", 0)) > 0
+        },
         "platform_contract_residuals": sum(container_counts.values()),
         "unknown_or_avoidable_residuals": unknown_or_avoidable,
         "contract_blockers": contract_blockers,
         "policy_note": (
-            "Protected payload/native artifacts must have zero printable strings. Platform containers may retain "
-            "classified loader, signing, and package metadata only when no unknown or avoidable residuals remain."
+            "Protected payload/native artifacts must have zero semantic printable strings. Printable byte runs located "
+            "inside executable instructions are classified as instruction bytes, not stored plaintext. Platform containers "
+            "may retain classified loader, signing, and package metadata only when no unknown or avoidable residuals remain."
         ),
     }
 

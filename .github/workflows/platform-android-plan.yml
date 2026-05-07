@@ -72,6 +72,8 @@ jobs:
           path: |
             docs/qa/reports/android-*.json
             build/android-apk-smoke/mi-smoke.apk
+            build/android-apk-smoke/*.txt
+            build/android-apk-smoke/lib/**/*.so
             build/android-x86_64/*.so
             build/android-arm64-v8a/*.so
             build/android-emulator.log

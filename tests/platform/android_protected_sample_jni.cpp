@@ -16,6 +16,42 @@
 #include <cstddef>
 #include <cstdint>
 
+extern "C" __attribute__((visibility("hidden"), used, noinline)) void *memset(void *dst, int value,
+                                                                              std::size_t size) {
+  auto *out = static_cast<volatile std::uint8_t *>(dst);
+  const auto byte = static_cast<std::uint8_t>(value);
+  for (std::size_t i = 0; i < size; ++i) {
+    out[i] = byte;
+  }
+  return dst;
+}
+
+extern "C" __attribute__((visibility("hidden"), used, noinline)) void *memcpy(void *dst, const void *src,
+                                                                              std::size_t size) {
+  auto *out = static_cast<volatile std::uint8_t *>(dst);
+  const auto *in = static_cast<const volatile std::uint8_t *>(src);
+  for (std::size_t i = 0; i < size; ++i) {
+    out[i] = in[i];
+  }
+  return dst;
+}
+
+extern "C" __attribute__((visibility("hidden"), used, noinline)) void *memmove(void *dst, const void *src,
+                                                                               std::size_t size) {
+  auto *out = static_cast<volatile std::uint8_t *>(dst);
+  const auto *in = static_cast<const volatile std::uint8_t *>(src);
+  if (out < in) {
+    for (std::size_t i = 0; i < size; ++i) {
+      out[i] = in[i];
+    }
+  } else if (out > in) {
+    for (std::size_t i = size; i > 0; --i) {
+      out[i - 1U] = in[i - 1U];
+    }
+  }
+  return dst;
+}
+
 namespace {
 
 constexpr std::uint8_t kMask = 0xa5U;
