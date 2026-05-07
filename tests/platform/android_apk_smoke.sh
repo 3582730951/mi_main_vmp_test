@@ -690,13 +690,16 @@ def diagnostic_lines(text, limit=80):
         " x.y",
         " m:",
     )
-    lines = [
-        line for line in text.splitlines()
-        if any(needle in line.lower() for needle in needles)
-    ]
+    lines = []
+    for line in text.splitlines():
+        lowered = line.lower()
+        if "token=" in lowered or "remotetoken" in lowered or "windowcontainertoken" in lowered:
+            continue
+        if any(needle in lowered for needle in needles):
+            lines.append(line)
     return lines[-limit:]
 am_start_output = read_text(am_start_log).splitlines()
-logcat_diagnostics = diagnostic_lines(read_text(logcat_full_log))
+raw_logcat_diagnostics = diagnostic_lines(read_text(logcat_full_log))
 sum_ok = "sum=42" in result_text
 platform_ok = "platform=3" in result_text
 status_ok = (
@@ -729,6 +732,7 @@ elif forbidden_apk_hits:
     blocking_note = "Forbidden plaintext markers remained in the signed APK."
 elif protected_asset_packaged:
     blocking_note = "Protected sample was packaged as an APK asset instead of remaining embedded in JNI."
+logcat_diagnostics = [] if status_ok else raw_logcat_diagnostics
 data = {
     "schema": "vmp.platform.android_apk_smoke.v1",
     "status": "pass" if status_ok else "fail",
